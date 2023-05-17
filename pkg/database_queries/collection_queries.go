@@ -14,7 +14,7 @@ var CountCollections = `
 
 var ListCollections = `
     SELECT
-        pulp_id,
+        pulp_id::text,
         pulp_created as created_at,
         pulp_last_updated as updated_at,
         namespace,
@@ -27,7 +27,7 @@ var CollectionSummary = `
     SELECT
         CONCAT('/api/v3/collections/', namespace, '/', name, '/') as href,
         CONCAT('/api/v3/collections/', namespace, '/', name, '/versions/') as versions_url,
-        pulp_id,
+        pulp_id::text,
         pulp_created as created_at,
         pulp_last_updated as updated_at,
         namespace,
@@ -39,7 +39,7 @@ var CollectionSummary = `
 var CollectionVersionsSummary = `
     SELECT
         CONCAT('/api/v3/collections/', acv.namespace, '/', acv.name, '/versions/', acv.version, '/') as href,
-        acv.content_ptr_id as pulp_id,
+        acv.content_ptr_id::text as pulp_id,
         cc.pulp_created as created_at,
         cc.pulp_last_updated as updated_at,
         acv.version,
@@ -71,7 +71,7 @@ var CountCollectionVersions = `
 
 var ListCollectionVersions = `
     SELECT
-        acv.content_ptr_id as pulp_id,
+        acv.content_ptr_id::text as pulp_id,
         cc.pulp_created as created_at, 
         cc.pulp_last_updated as updated_at, 
         acv.collection_id,
@@ -91,14 +91,17 @@ var ListCollectionVersions = `
 var CollectionVersionDetail = `
     SELECT
         CONCAT('/api/v3/collections/', acv.namespace, '/', acv.name, '/versions/', acv.version, '/') as href,
-        acv.content_ptr_id as pulp_id,
+        CONCAT('/api/v3/collections/', acv.namespace, '/', acv.name, '/') as collection_href,
+        CONCAT('/api/v3/artifacts/', cca.relative_path) as download_url,
+        acv.content_ptr_id::text as pulp_id,
+        ac.pulp_id::text as collection_id,
         cc.pulp_created as created_at, 
         cc.pulp_last_updated as updated_at, 
-        acv.collection_id,
+        acv.collection_id::text,
         acv.namespace,
         acv.name,
         acv.version,
-        acv.dependencies,
+        acv.dependencies::text,
         acv.license,
         acv.repository,
         acv.is_highest,
@@ -107,9 +110,20 @@ var CollectionVersionDetail = `
         acv.documentation,
         acv.homepage,
         acv.issues,
-        acv.manifest
+        acv.manifest,
+        cca.artifact_id as artifact_id,
+        cca.relative_path as filename,
+        ca.sha256 as sha256,
+        ca.size as size
+
     FROM ansible_collectionversion acv
+    LEFT JOIN ansible_collection ac
+        ON ac.namespace = acv.name AND ac.name = acv.name
     LEFT JOIN core_content cc
         ON cc.pulp_id = acv.content_ptr_id
-    WHERE acv.namespace = '{{ namespace }}' AND name = '{{ name }}' AND version = '{{ version }}'
+    LEFT JOIN core_contentartifact cca
+        ON cca.content_id = acv.content_ptr_id
+    LEFT JOIN core_artifact ca
+        ON ca.pulp_id = cca.artifact_id
+    WHERE acv.namespace = '{{ namespace }}' AND acv.name = '{{ name }}' AND acv.version = '{{ version }}'
 `

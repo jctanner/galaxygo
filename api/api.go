@@ -1,9 +1,13 @@
 package main
 
 import (
+    "encoding/json"
 	"flag"
 	"fmt"
+     "os"
     "strconv"
+
+    "net/http"
 
 	"github.com/gin-contrib/location"
 	"github.com/gin-gonic/gin"
@@ -193,11 +197,13 @@ func (g *Galaxy) ApiV3CollectionVersionsSummary(c *gin.Context) {
 
     if (offset_int > 0) {
         previous_url = baseurl + "?" + "limit=" + limit + "&offset=" + strconv.Itoa(previous_offset)
-    } else {
-        previous_url = ""
     }
     first_url = baseurl + "?" + "limit=" + limit + "&offset=0"
-    next_url = baseurl + "?" + "limit=" + limit + "&offset=" + strconv.Itoa(next_offset)
+
+    if (next_offset <= count_int) {
+        next_url = baseurl + "?" + "limit=" + limit + "&offset=" + strconv.Itoa(next_offset)
+    }
+
     last_url = baseurl + "?" + "limit=" + limit + "&offset=" + strconv.Itoa(last_offset)
 
     c.JSON(200, gin.H{
@@ -284,25 +290,45 @@ func (g *Galaxy) ApiV3CollectionVersionDetail(c *gin.Context) {
     name := c.Param("name")
     version := c.Param("version")
 
+    // get the request host ...
+    scheme := "http"
+    if c.Request.TLS != nil {
+        scheme = "https"
+    }
+    rhost := scheme + "://" + c.Request.Host
+
+	// make the templater for the cv SQL 
     tpl, err := gonja.FromString(database_queries.CollectionVersionDetail)
     if err != nil {
         fmt.Println(err)
     }
     fmt.Println(tpl)
 
+	// render the SQL
     qs, err := tpl.Execute(gonja.Context{"namespace": namespace, "name": name, "version": version})
     if err != nil {
         fmt.Println(err)
     }
     fmt.Println(qs)
 
+	// run query
     cv_rows,err := galaxy_database.ExecuteQuery(qs)
     if err != nil {
         fmt.Println(err)
     }
     cv := cv_rows[0]
 
+	// cast to string and unmarshal dependencies
+    var cv_deps map[string]interface{}
+    err2 := json.Unmarshal([]byte(fmt.Sprintf("%v", cv["dependencies"])), &cv_deps)
+    if err2 != nil {
+        panic(err2)
+    }
+
+	// serialize the response
     ds := gin.H{
+        "pulp_id": cv["pulp_id"],
+        "href": cv["href"],
         "namespace": gin.H{
             "name": cv["namespace"],
         },
@@ -310,11 +336,22 @@ func (g *Galaxy) ApiV3CollectionVersionDetail(c *gin.Context) {
         "version": cv["version"],
         "created_at": cv["created_at"],
         "updated_at": cv["updated_at"],
+        "download_url": rhost + fmt.Sprintf("%v", cv["download_url"]),
+        "collection": gin.H{
+            "id": cv["collection_id"],
+            "name": cv["name"],
+            "href": cv["collection_href"],
+        },
+        "artifact": gin.H{
+            "filename": cv["filename"],
+            "sha256": cv["sha256"],
+            "size": cv["size"],
+        },
         "requires_ansible": cv["requires_ansible"],
         "metadata": gin.H{
             "authors": nil,
             "contents": nil,
-            "dependencies": nil,
+            "dependencies": cv_deps,
             "description": cv["description"],
             "documentation": cv["documentation"],
             "homepage": cv["homepage"],
@@ -342,6 +379,17 @@ func (g *Galaxy) ApiV3CollectionVersionDetail(c *gin.Context) {
     }
 
     c.JSON(200, ds)
+}
+
+// r.GET("/api/v3/artifacts/:filename", galaxy.ApiV3Artifact)
+func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
+    filename := c.Param("filename")
+    baseurl := os.Getenv("ARTIFACT_BASE_URL")
+    if ( baseurl == "" ) {
+	    baseurl = "http://localhost:5001/api/automation-hub/v3/plugin/ansible/content/published/collections/artifacts/"
+    }
+    redirect_url := baseurl + filename
+    c.Redirect(http.StatusFound, redirect_url)
 }
 
 
@@ -389,6 +437,7 @@ func main() {
 
     // v3
     r.GET("/api/v3/", galaxy.ApiV3)
+    r.GET("/api/v3/artifacts/:filename", galaxy.ApiV3Artifact)
     r.GET("/api/v3/collections/", galaxy.ApiV3CollectionsList)
     r.GET("/api/v3/collections/:namespace/:name/", galaxy.ApiV3CollectionSummary)
     r.GET("/api/v3/collections/:namespace/:name/versions/", galaxy.ApiV3CollectionVersionsSummary)
