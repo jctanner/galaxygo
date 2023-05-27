@@ -465,8 +465,7 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
         Bucket: aws.String(s3_bucket_name),
         Key:    aws.String(filekey),
     })
-
-	//defer resp.Body.Close()
+	defer resp.Body.Close()
     fmt.Println("resp ...")
 	fmt.Println(resp)
 
