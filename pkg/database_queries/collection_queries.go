@@ -127,3 +127,14 @@ var CollectionVersionDetail = `
         ON ca.pulp_id = cca.artifact_id
     WHERE acv.namespace = '{{ namespace }}' AND acv.name = '{{ name }}' AND acv.version = '{{ version }}'
 `
+
+var ArtifactPathByFilename = `
+    SELECT
+        cca.relative_path as filename,
+        ca.file as filepath
+    FROM core_contentartifact cca
+    LEFT JOIN core_artifact ca
+        ON ca.pulp_id = cca.artifact_id
+    WHERE cca.relative_path = '{{ filename }}'
+    LIMIT 1
+`

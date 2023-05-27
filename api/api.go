@@ -4,10 +4,16 @@ import (
     "encoding/json"
 	"flag"
 	"fmt"
-     "os"
+    "io"
+    "os"
     "strconv"
 
     "net/http"
+
+    "github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+    "github.com/aws/aws-sdk-go/aws/session"
+    "github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/gin-contrib/location"
 	"github.com/gin-gonic/gin"
@@ -381,15 +387,110 @@ func (g *Galaxy) ApiV3CollectionVersionDetail(c *gin.Context) {
     c.JSON(200, ds)
 }
 
-// r.GET("/api/v3/artifacts/:filename", galaxy.ApiV3Artifact)
+
 func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
+
+    // ArtifactPathByNamespaceNameVersion
     filename := c.Param("filename")
+
+    tpl, err := gonja.FromString(database_queries.ArtifactPathByFilename)
+    if err != nil {
+        fmt.Println(err)
+    }
+    fmt.Println(tpl)
+
+	// render the SQL
+    qs, err := tpl.Execute(gonja.Context{"filename": filename})
+    if err != nil {
+        fmt.Println(err)
+    }
+    //fmt.Println(qs)
+
+	// run query
+    fp_rows,err := galaxy_database.ExecuteQuery(qs)
+    if err != nil {
+        fmt.Println(err)
+    }
+    //fmt.Println(fp_rows[0]["filepath"])
+    filepath := fp_rows[0]["filepath"].(string)
+    fmt.Println("FILEPATH " + filepath)
+
+    // get the access key id
+    aws_access_key := os.Getenv("PULP_AWS_ACCESS_KEY_ID")
+    fmt.Println(aws_access_key)
+
+    // get the secret key
+    aws_secret_key := os.Getenv("PULP_AWS_SECRET_ACCESS_KEY")
+	fmt.Println(aws_secret_key)
+
+    // get the s3 region
+    aws_region := os.Getenv("PULP_AWS_S3_REGION_NAME")
+    fmt.Println(aws_region)
+
+    // get the s3 url
+    s3_endpoint_url := os.Getenv("PULP_AWS_S3_ENDPOINT_URL")
+    fmt.Println(s3_endpoint_url)
+
+    // get the s3 bucket
+    s3_bucket_name := os.Getenv("PULP_AWS_STORAGE_BUCKET_NAME")
+    fmt.Println(s3_bucket_name)
+
+	// set the creds
+	creds := credentials.NewStaticCredentials(aws_access_key, aws_secret_key, "")
+	fmt.Println(creds)
+
+    // Create a new aws session
+	sess, err := session.NewSession(&aws.Config{
+		Endpoint: aws.String(s3_endpoint_url),
+		Region: aws.String(aws_region),
+		Credentials: creds,
+	})
+    if err != nil {
+        fmt.Println("Failed to create session", err)
+        return
+    }
+    fmt.Println("sess ...")
+	fmt.Println(sess)
+
+    sess.Config.WithLogLevel(aws.LogDebugWithHTTPBody)
+
+	// Create a new S3 service client
+	svc := s3.New(sess)
+    fmt.Println("svc ...")
+	fmt.Println(svc)
+
+    // Retrieve the file from S3
+    filekey := s3_bucket_name + "/" + filepath
+    resp, err := svc.GetObject(&s3.GetObjectInput{
+        Bucket: aws.String(s3_bucket_name),
+        Key:    aws.String(filekey),
+    })
+
+	//defer resp.Body.Close()
+    fmt.Println("resp ...")
+	fmt.Println(resp)
+
+	fmt.Println("resp.ContentType ...")
+	fmt.Println(*resp.ContentType)
+
+	// Set the appropriate Content-Type header
+	c.Header("Content-Type", *resp.ContentType)
+
+	// Stream the file contents to the client
+	_, err = io.Copy(c.Writer, resp.Body)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Failed to stream file")
+		return
+	}
+
+	/*
     baseurl := os.Getenv("ARTIFACT_BASE_URL")
     if ( baseurl == "" ) {
-	    baseurl = "http://localhost:5001/api/automation-hub/v3/plugin/ansible/content/published/collections/artifacts/"
+	    baseurl = "http://localhost:5001/api/v3/plugin/ansible/content/community/collections/artifacts/"
     }
     redirect_url := baseurl + filename
     c.Redirect(http.StatusFound, redirect_url)
+	*/
 }
 
 
@@ -438,6 +539,7 @@ func main() {
     // v3
     r.GET("/api/v3/", galaxy.ApiV3)
     r.GET("/api/v3/artifacts/:filename", galaxy.ApiV3Artifact)
+    r.GET("/api/v3/artifacts/collections/community/:filename", galaxy.ApiV3Artifact)
     r.GET("/api/v3/collections/", galaxy.ApiV3CollectionsList)
     r.GET("/api/v3/collections/:namespace/:name/", galaxy.ApiV3CollectionSummary)
     r.GET("/api/v3/collections/:namespace/:name/versions/", galaxy.ApiV3CollectionVersionsSummary)
