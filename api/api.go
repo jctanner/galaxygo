@@ -144,25 +144,25 @@ func (g *Galaxy) ApiV3CollectionVersionsSummary(c *gin.Context) {
     if err != nil {
         fmt.Println(err)
     }
-    fmt.Println(tpl)
+    //fmt.Println(tpl)
 
     count_qs, err := tpl.Execute(gonja.Context{"namespace": namespace, "name": name})
     if err != nil {
         fmt.Println(err)
     }
-    fmt.Println(count_qs)
+    //fmt.Println(count_qs)
 
     tpl2, err2 := gonja.FromString(database_queries.CollectionVersionsSummary)
     if err2 != nil {
         fmt.Println(err2)
     }
-    fmt.Println(tpl2)
+    //fmt.Println(tpl2)
 
     versions_qs, err := tpl2.Execute(gonja.Context{"namespace": namespace, "name": name})
     if err != nil {
         fmt.Println(err)
     }
-    fmt.Println(versions_qs)
+    //fmt.Println(versions_qs)
 
     limit := c.DefaultQuery("limit", "10")
     offset := c.DefaultQuery("offset", "0")
@@ -181,12 +181,12 @@ func (g *Galaxy) ApiV3CollectionVersionsSummary(c *gin.Context) {
     if err != nil {
         fmt.Println(err)
     }
-    fmt.Println(count_rows[0]["count"])
+    //fmt.Println(count_rows[0]["count"])
     count := count_rows[0]["count"]
     count_int := int(count.(int64))
 
     qs :=  versions_qs + "ORDER BY " + order_by  + " DESC " + " LIMIT " + limit + " OFFSET " + offset
-    fmt.Println(qs)
+    //fmt.Println(qs)
     collection_rows,err := galaxy_database.ExecuteQuery(qs)
     if err != nil {
         fmt.Println(err)
@@ -248,7 +248,7 @@ func (g *Galaxy) ApiV3CollectionVersionsList(c *gin.Context) {
     if err != nil {
         fmt.Println(err)
     }
-    fmt.Println(count_rows[0]["count"])
+    //fmt.Println(count_rows[0]["count"])
     count := count_rows[0]["count"]
     count_int := int(count.(int64))
 
@@ -308,14 +308,14 @@ func (g *Galaxy) ApiV3CollectionVersionDetail(c *gin.Context) {
     if err != nil {
         fmt.Println(err)
     }
-    fmt.Println(tpl)
+    //fmt.Println(tpl)
 
 	// render the SQL
     qs, err := tpl.Execute(gonja.Context{"namespace": namespace, "name": name, "version": version})
     if err != nil {
         fmt.Println(err)
     }
-    fmt.Println(qs)
+    //fmt.Println(qs)
 
 	// run query
     cv_rows,err := galaxy_database.ExecuteQuery(qs)
@@ -396,13 +396,15 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
     tpl, err := gonja.FromString(database_queries.ArtifactPathByFilename)
     if err != nil {
         fmt.Println(err)
+        return
     }
-    fmt.Println(tpl)
+    //fmt.Println(tpl)
 
 	// render the SQL
     qs, err := tpl.Execute(gonja.Context{"filename": filename})
     if err != nil {
         fmt.Println(err)
+        return
     }
     //fmt.Println(qs)
 
@@ -413,31 +415,31 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
     }
     //fmt.Println(fp_rows[0]["filepath"])
     filepath := fp_rows[0]["filepath"].(string)
-    fmt.Println("FILEPATH " + filepath)
+    //fmt.Println("FILEPATH " + filepath)
 
     // get the access key id
     aws_access_key := os.Getenv("PULP_AWS_ACCESS_KEY_ID")
-    fmt.Println(aws_access_key)
+    //fmt.Println(aws_access_key)
 
     // get the secret key
     aws_secret_key := os.Getenv("PULP_AWS_SECRET_ACCESS_KEY")
-	fmt.Println(aws_secret_key)
+	//fmt.Println(aws_secret_key)
 
     // get the s3 region
     aws_region := os.Getenv("PULP_AWS_S3_REGION_NAME")
-    fmt.Println(aws_region)
+    //fmt.Println(aws_region)
 
     // get the s3 url
     s3_endpoint_url := os.Getenv("PULP_AWS_S3_ENDPOINT_URL")
-    fmt.Println(s3_endpoint_url)
+    //fmt.Println(s3_endpoint_url)
 
     // get the s3 bucket
     s3_bucket_name := os.Getenv("PULP_AWS_STORAGE_BUCKET_NAME")
-    fmt.Println(s3_bucket_name)
+    //fmt.Println(s3_bucket_name)
 
 	// set the creds
 	creds := credentials.NewStaticCredentials(aws_access_key, aws_secret_key, "")
-	fmt.Println(creds)
+	//fmt.Println(creds)
 
     // Create a new aws session
 	sess, err := session.NewSession(&aws.Config{
@@ -449,15 +451,15 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
         fmt.Println("Failed to create session", err)
         return
     }
-    fmt.Println("sess ...")
-	fmt.Println(sess)
+    //fmt.Println("sess ...")
+	//fmt.Println(sess)
 
-    sess.Config.WithLogLevel(aws.LogDebugWithHTTPBody)
+    //sess.Config.WithLogLevel(aws.LogDebugWithHTTPBody)
 
 	// Create a new S3 service client
 	svc := s3.New(sess)
-    fmt.Println("svc ...")
-	fmt.Println(svc)
+    //fmt.Println("svc ...")
+	//fmt.Println(svc)
 
     // Retrieve the file from S3
     filekey := s3_bucket_name + "/" + filepath
@@ -466,11 +468,11 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
         Key:    aws.String(filekey),
     })
 	defer resp.Body.Close()
-    fmt.Println("resp ...")
-	fmt.Println(resp)
+    //fmt.Println("resp ...")
+	//fmt.Println(resp)
 
-	fmt.Println("resp.ContentType ...")
-	fmt.Println(*resp.ContentType)
+	//fmt.Println("resp.ContentType ...")
+	//fmt.Println(*resp.ContentType)
 
 	// Set the appropriate Content-Type header
 	c.Header("Content-Type", *resp.ContentType)

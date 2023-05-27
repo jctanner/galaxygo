@@ -39,7 +39,7 @@ func ExecuteQuery(qs string) ([]map[string]interface{}, error) {
     if err != nil {
         return nil, err
     }
-    fmt.Println(columns)
+    //fmt.Println(columns)
 
     // Create a slice to hold the rows as maps
     var results []map[string]interface{}
@@ -67,7 +67,7 @@ func ExecuteQuery(qs string) ([]map[string]interface{}, error) {
             rowData[column] = values[i]
         }
 
-        fmt.Println(rowData)
+        //fmt.Println(rowData)
 
         // Append the map to the slice
         results = append(results, rowData)
