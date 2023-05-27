@@ -54,4 +54,5 @@ export PULP_AWS_STORAGE_BUCKET_NAME="pulp3"
 export PULP_AWS_S3_ENDPOINT_URL="http://minio:9000"
 export PULP_AWS_DEFAULT_ACL="@none None"
 
+cd src
 go run api/api.go

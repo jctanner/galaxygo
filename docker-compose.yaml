@@ -1,0 +1,16 @@
+services:
+
+  gng_redis:
+    image: 'redis:alpine'
+
+  gng_api:
+    build: .
+    ports:
+      - '8080:8080'
+    command: "/bin/bash -c 'cd /app; ls -al; go run api/api.go'"
+    env_file:
+      - './settings.env'
+
+networks:
+  galaxy_ng_default:
+    external: true
