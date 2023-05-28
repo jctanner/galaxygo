@@ -69,7 +69,7 @@ func (g *Galaxy) ApiV3CollectionsList(c *gin.Context) {
     if err != nil {
         fmt.Println(err)
     }
-    fmt.Println(count_rows[0]["count"])
+    //fmt.Println(count_rows[0]["count"])
     count := count_rows[0]["count"]
     count_int := int(count.(int64))
 
