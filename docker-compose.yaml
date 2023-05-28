@@ -10,13 +10,13 @@ services:
     env_file:
       - './dev/settings.env'
     volumes:
-      - './dev/var.lib.postgresql:/var/lib/postgresql'
+      - "pg_data:/var/lib/postgresql/data"
 
   minio:
     image: minio/minio
     command: "server /var/lib/minio"
     volumes:
-      - './dev/var.lib.minio:/var/lib/minio'
+      - 'minio:/var/lib/minio'
     env_file:
       - './dev/settings.env'
     networks:
@@ -34,6 +34,7 @@ services:
     volumes:
       - './src:/src'
       - './dev/galaxy_ng/bin:/opt/bin'
+      - "pulp:/var/lib/pulp"
     depends_on:
       - postgres
       - minio
@@ -47,7 +48,7 @@ services:
     volumes:
       - './dev/galaxy_ng/bin:/opt/bin'
       - './dev/certs:/etc/pulp/certs'
-      - './dev/var.lib.pulp:/var/lib/pulp'
+      - "pulp:/var/lib/pulp"
     depends_on:
       - minio
       - postgres
@@ -61,7 +62,7 @@ services:
     volumes:
       - './dev/galaxy_ng/bin:/opt/bin'
       - './dev/certs:/etc/pulp/certs'
-      - './dev/var.lib.pulp:/var/lib/pulp'
+      - "pulp:/var/lib/pulp"
     depends_on:
       - ansible
 
@@ -73,7 +74,7 @@ services:
     volumes:
       - './dev/galaxy_ng/bin:/opt/bin'
       - './dev/certs:/etc/pulp/certs'
-      - './dev/var.lib.pulp:/var/lib/pulp'
+      - "pulp:/var/lib/pulp"
     depends_on:
       - ansible
 
@@ -91,6 +92,12 @@ services:
       - redis
       - galaxyapi
 
-#networks:
-#  galaxy_ng_default:
-#    external: true
+volumes:
+  pulp:
+    name: gng_pulp
+  minio:
+    name: gng_minio
+  pg_data:
+    name: gng_pg_data
+  #redis_data:
+  #  name: redis_data

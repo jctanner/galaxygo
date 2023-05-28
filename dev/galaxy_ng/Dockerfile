@@ -36,6 +36,8 @@ RUN useradd --uid ${USER_ID} --gid "${USER_GROUP}" "${USER_NAME}"
 RUN mkdir /app && chown -R ${USER_ID}:${USER_GROUP} /app
 RUN mkdir /venv && chown -R ${USER_ID}:${USER_GROUP} /venv
 
+RUN mkdir /var/lib/pulp && chown -R ${USER_ID}:${USER_GROUP} /var/lib/pulp
+
 USER ${USER_NAME}:${USER_GROUP}
 
 RUN python3 -m venv /venv

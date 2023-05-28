@@ -13,6 +13,10 @@ readonly BIND_HOST='0.0.0.0'
 readonly BIND_PORT=${GUNICORN_PORT:-8000}
 readonly APP_MODULE='pulpcore.app.wsgi:application'
 
+if [ ! -d /var/lib/pulp/tmp ]; then
+    mkdir /var/lib/pulp/tmp
+fi
+
 
 GUNICORN_OPTIONS=(
   --bind "${BIND_HOST}:${BIND_PORT}"
