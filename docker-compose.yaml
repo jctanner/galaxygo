@@ -27,6 +27,8 @@ services:
       - './src:/src'
       - './dev/galaxy_ng/bin:/opt/bin'
     depends_on:
+      - postgres
+      - minio
       - galaxyapi
 
   galaxyapi:
@@ -53,9 +55,6 @@ services:
       - './dev/certs:/etc/pulp/certs'
       - './dev/var.lib.pulp:/var/lib/pulp'
     depends_on:
-      #- minio
-      #- postgres
-      #- redis
       - ansible
 
   pulpworker:
@@ -68,9 +67,6 @@ services:
       - './dev/certs:/etc/pulp/certs'
       - './dev/var.lib.pulp:/var/lib/pulp'
     depends_on:
-      #- minio
-      #- postgres
-      #- redis
       - ansible
 
   ansible:
@@ -85,8 +81,7 @@ services:
       - minio
       - postgres
       - redis
-      #- gng_pulp_content
-      #- gng_galaxy_api
+      - galaxyapi
 
 #networks:
 #  galaxy_ng_default:
