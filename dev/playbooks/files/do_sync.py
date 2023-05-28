@@ -81,7 +81,7 @@ def main():
     while True:
         rrt = requests.get(task_url, auth=('admin', 'admin'))
         state = rrt.json()['state']
-        logger.info(state)
+        logger.info(f'remote config task is {state}')
         if state in ['completed', 'failed']:
             break
         time.sleep(2)
@@ -94,7 +94,7 @@ def main():
     while True:
         rrt = requests.get(task_url, auth=('admin', 'admin'))
         state = rrt.json()['state']
-        logger.info(state)
+        logger.info(f'sync task is {state}')
         if state in ['completed', 'failed']:
             break
         time.sleep(5)
