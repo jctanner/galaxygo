@@ -7,6 +7,7 @@ import (
     "io"
     "os"
     "strconv"
+    "time"
 
     "net/http"
 
@@ -19,12 +20,21 @@ import (
 	"github.com/gin-gonic/gin"
     "github.com/noirbizarre/gonja"
 
+    "github.com/go-redis/redis"
+
     "github.com/jctanner/galaxygo/pkg/database_queries"
     "github.com/jctanner/galaxygo/pkg/galaxy_database"
 )
 
 
 type Galaxy struct {}
+
+
+var redisClient = redis.NewClient(&redis.Options{
+    Addr:     "redis:6379",
+    Password: "", // Provide password if required
+    DB:       0,  // Use default database
+})
 
 
 func (g *Galaxy) Api(c *gin.Context) {
@@ -393,29 +403,41 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
     // ArtifactPathByNamespaceNameVersion
     filename := c.Param("filename")
 
-    tpl, err := gonja.FromString(database_queries.ArtifactPathByFilename)
+    redisCacheKey := "artifact_path_" + filename
+    filepath, err := redisClient.Get(redisCacheKey).Result()
     if err != nil {
-        fmt.Println(err)
-        return
-    }
-    //fmt.Println(tpl)
 
-	// render the SQL
-    qs, err := tpl.Execute(gonja.Context{"filename": filename})
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
-    //fmt.Println(qs)
+        tpl, err := gonja.FromString(database_queries.ArtifactPathByFilename)
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
+        //fmt.Println(tpl)
 
-	// run query
-    fp_rows,err := galaxy_database.ExecuteQuery(qs)
-    if err != nil {
-        fmt.Println(err)
+        // render the SQL
+        qs, err := tpl.Execute(gonja.Context{"filename": filename})
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
+        //fmt.Println(qs)
+
+        // run query
+        fp_rows,err := galaxy_database.ExecuteQuery(qs)
+        if err != nil {
+            fmt.Println(err)
+        }
+        //fmt.Println(fp_rows[0]["filepath"])
+        filepath = fp_rows[0]["filepath"].(string)
+        //fmt.Println("FILEPATH " + filepath)
+
+        err = redisClient.Set(redisCacheKey, filepath, 5*time.Minute).Err()
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
+
     }
-    //fmt.Println(fp_rows[0]["filepath"])
-    filepath := fp_rows[0]["filepath"].(string)
-    //fmt.Println("FILEPATH " + filepath)
 
     // get the access key id
     aws_access_key := os.Getenv("PULP_AWS_ACCESS_KEY_ID")

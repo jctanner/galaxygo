@@ -56,8 +56,14 @@ def main():
 
     spec = {
         'collections': [
-            'ansible.posix',
-            'community.network'
+            {
+                'name': 'ansible.posix',
+                'version': '1.5.4'
+            },
+            {
+                'name': 'community.network',
+                'version': '5.0.0'
+            }
         ]
     }
     spec_yaml = yaml.dump(spec)
