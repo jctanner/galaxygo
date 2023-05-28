@@ -9,12 +9,20 @@ services:
     image: "postgres:12"
     env_file:
       - './dev/settings.env'
+    volumes:
+      - './dev/var.lib.postgresql:/var/lib/postgresql'
 
   minio:
     image: minio/minio
-    command: "server /data"
+    command: "server /var/lib/minio"
+    volumes:
+      - './dev/var.lib.minio:/var/lib/minio'
     env_file:
       - './dev/settings.env'
+    networks:
+      default:
+        aliases:
+          - pulp3.minio
  
   goapi:
     build: .

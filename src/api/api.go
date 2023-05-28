@@ -431,7 +431,7 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
 
     // get the s3 url
     s3_endpoint_url := os.Getenv("PULP_AWS_S3_ENDPOINT_URL")
-    //fmt.Println(s3_endpoint_url)
+    fmt.Println(s3_endpoint_url)
 
     // get the s3 bucket
     s3_bucket_name := os.Getenv("PULP_AWS_STORAGE_BUCKET_NAME")
@@ -454,7 +454,7 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
     //fmt.Println("sess ...")
 	//fmt.Println(sess)
 
-    //sess.Config.WithLogLevel(aws.LogDebugWithHTTPBody)
+    sess.Config.WithLogLevel(aws.LogDebugWithHTTPBody)
 
 	// Create a new S3 service client
 	svc := s3.New(sess)
