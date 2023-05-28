@@ -1,0 +1,53 @@
+- hosts: localhost
+  connection: local
+  gather_facts: False
+  vars:
+    ansible_python_interpreter: /usr/local/bin/python3
+  tasks:
+      - name: "Create Pulp Bucket"
+        amazon.aws.s3_bucket:
+          aws_access_key: "{{ lookup('ansible.builtin.env', 'PULP_AWS_ACCESS_KEY_ID') }}"
+          aws_secret_key: "{{ lookup('ansible.builtin.env', 'PULP_AWS_SECRET_ACCESS_KEY') }}"
+          s3_url: "{{ lookup('ansible.builtin.env', 'PULP_AWS_S3_ENDPOINT_URL') }}"
+          region: "{{ lookup('ansible.builtin.env', 'PULP_AWS_S3_REGION_NAME') }}"
+          name: "{{ lookup('ansible.builtin.env', 'PULP_AWS_STORAGE_BUCKET_NAME') }}"
+          state: present
+
+      - name: find the api container
+        shell: docker ps  | awk '{print $NF}' | grep galaxyapi
+        register: docker_ps
+
+      - name: add the galayx api host
+        add_host:
+          hostname: galaxyapi
+          ansible_host: "{{ docker_ps.stdout }}"
+
+
+- hosts: galaxyapi
+  connection: community.docker.docker_api
+  gather_facts: False
+  tasks:
+      - name: run migrations
+        shell: /venv/bin/pulpcore-manager migrate
+
+      - name: check admin user
+        shell: echo "from galaxy_ng.app.models import User; print(User.objects.filter(username='admin').exists())" | /venv/bin/pulpcore-manager shell
+        register: admin_check
+
+      - name: create admin user
+        shell: echo "from galaxy_ng.app.models import User; User.objects.create_superuser('admin', 'admin@example.com', 'admin')" | /venv/bin/pulpcore-manager shell
+        when: "admin_check.stdout == 'False'"
+
+
+- hosts: localhost
+  connection: local
+  gather_facts: False
+  vars:
+    ansible_python_interpreter: /usr/local/bin/python3
+  tasks:
+      - name: configure the community remote & sync it
+        script: do_sync.py http://galaxyapi:8000
+        args:
+          executable: "{{ ansible_python_interpreter }}"
+        
+

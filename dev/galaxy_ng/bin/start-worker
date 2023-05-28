@@ -1,0 +1,9 @@
+#!/bin/bash
+
+#set -o errexit
+#set -o nounset
+
+while true; do
+    /venv/bin/pulpcore-worker
+    sleep 5
+done

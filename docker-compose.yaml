@@ -1,16 +1,93 @@
 services:
 
-  gng_redis:
+  redis:
     image: 'redis:alpine'
+    env_file:
+      - './dev/settings.env'
 
-  gng_api:
+  postgres:
+    image: "postgres:12"
+    env_file:
+      - './dev/settings.env'
+
+  minio:
+    image: minio/minio
+    command: "server /data"
+    env_file:
+      - './dev/settings.env'
+ 
+  goapi:
     build: .
     ports:
       - '8080:8080'
-    command: "/bin/bash -c 'cd /app; ls -al; go run api/api.go'"
+    command: "/bin/bash -c 'cd /src; go run api/api.go'"
     env_file:
-      - './settings.env'
+      - './dev/settings.env'
+    volumes:
+      - './src:/src'
+      - './dev/galaxy_ng/bin:/opt/bin'
+    depends_on:
+      - galaxyapi
 
-networks:
-  galaxy_ng_default:
-    external: true
+  galaxyapi:
+    build: ./dev/galaxy_ng/
+    command: '/opt/bin/start-api'
+    env_file:
+      - './dev/settings.env'
+    volumes:
+      - './dev/galaxy_ng/bin:/opt/bin'
+      - './dev/certs:/etc/pulp/certs'
+      - './dev/var.lib.pulp:/var/lib/pulp'
+    depends_on:
+      - minio
+      - postgres
+      - redis
+
+  pulpcontent:
+    build: ./dev/galaxy_ng/
+    command: '/opt/bin/start-content'
+    env_file:
+      - './dev/settings.env'
+    volumes:
+      - './dev/galaxy_ng/bin:/opt/bin'
+      - './dev/certs:/etc/pulp/certs'
+      - './dev/var.lib.pulp:/var/lib/pulp'
+    depends_on:
+      #- minio
+      #- postgres
+      #- redis
+      - ansible
+
+  pulpworker:
+    build: ./dev/galaxy_ng/
+    command: '/opt/bin/start-worker'
+    env_file:
+      - './dev/settings.env'
+    volumes:
+      - './dev/galaxy_ng/bin:/opt/bin'
+      - './dev/certs:/etc/pulp/certs'
+      - './dev/var.lib.pulp:/var/lib/pulp'
+    depends_on:
+      #- minio
+      #- postgres
+      #- redis
+      - ansible
+
+  ansible:
+    build: ./dev/playbooks
+    command: /bin/bash -c 'cd /playbooks; ANSIBLE_STDOUT_CALLBACK=community.general.yaml ansible-playbook -v -i "localhost," -v stack.yml'
+    env_file:
+      - './dev/settings.env'
+    volumes:
+      - './dev/playbooks:/playbooks'
+      - '/var/run/docker.sock:/var/run/docker.sock'
+    depends_on:
+      - minio
+      - postgres
+      - redis
+      #- gng_pulp_content
+      #- gng_galaxy_api
+
+#networks:
+#  galaxy_ng_default:
+#    external: true
