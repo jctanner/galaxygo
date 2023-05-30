@@ -402,10 +402,49 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
 
     // ArtifactPathByNamespaceNameVersion
     filename := c.Param("filename")
+    filepath := ""
 
-    redisCacheKey := "artifact_path_" + filename
-    filepath, err := redisClient.Get(redisCacheKey).Result()
-    if err != nil {
+    use_redis := false
+
+    if use_redis {
+
+        redisCacheKey := "artifact_path_" + filename
+        filepath, err := redisClient.Get(redisCacheKey).Result()
+        if err != nil {
+
+            tpl, err := gonja.FromString(database_queries.ArtifactPathByFilename)
+            if err != nil {
+                fmt.Println(err)
+                return
+            }
+            //fmt.Println(tpl)
+
+            // render the SQL
+            qs, err := tpl.Execute(gonja.Context{"filename": filename})
+            if err != nil {
+                fmt.Println(err)
+                return
+            }
+            //fmt.Println(qs)
+
+            // run query
+            fp_rows,err := galaxy_database.ExecuteQuery(qs)
+            if err != nil {
+                fmt.Println(err)
+            }
+            //fmt.Println(fp_rows[0]["filepath"])
+            filepath = fp_rows[0]["filepath"].(string)
+            //fmt.Println("FILEPATH " + filepath)
+
+            err = redisClient.Set(redisCacheKey, filepath, 5*time.Minute).Err()
+            if err != nil {
+                fmt.Println(err)
+                return
+            }
+
+        }
+
+    } else {
 
         tpl, err := gonja.FromString(database_queries.ArtifactPathByFilename)
         if err != nil {
@@ -431,13 +470,7 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
         filepath = fp_rows[0]["filepath"].(string)
         //fmt.Println("FILEPATH " + filepath)
 
-        err = redisClient.Set(redisCacheKey, filepath, 5*time.Minute).Err()
-        if err != nil {
-            fmt.Println(err)
-            return
-        }
-
-    }
+      }
 
     // get the access key id
     aws_access_key := os.Getenv("PULP_AWS_ACCESS_KEY_ID")
@@ -476,7 +509,7 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
     //fmt.Println("sess ...")
 	//fmt.Println(sess)
 
-    sess.Config.WithLogLevel(aws.LogDebugWithHTTPBody)
+    //sess.Config.WithLogLevel(aws.LogDebugWithHTTPBody)
 
 	// Create a new S3 service client
 	svc := s3.New(sess)

@@ -57,13 +57,44 @@ def main():
     spec = {
         'collections': [
             {
+                'name': 'ansible.utils',
+            },
+            {
                 'name': 'ansible.posix',
-                'version': '1.5.4'
+            },
+            {
+                'name': 'ansible.windows',
+            },
+            {
+                'name': 'community.docker',
+            },
+            {
+                'name': 'google.cloud',
             },
             {
                 'name': 'community.network',
-                'version': '5.0.0'
-            }
+            },
+            {
+                'name': 'community.general',
+            },
+            {
+                'name': 'community.mysql',
+            },
+            {
+                'name': 'community.vmware',
+            },
+            {
+                'name': 'amazon.cloud',
+            },
+            {
+                'name': 'cisco.iosxr',
+            },
+            {
+                'name': 'vyos.vyos',
+            },
+            {
+                'name': 'kubernetes.core',
+            },
         ]
     }
     spec_yaml = yaml.dump(spec)

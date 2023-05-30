@@ -45,4 +45,4 @@ RUN git clone https://github.com/ansible/galaxy_ng /app/galaxy_ng
 RUN /venv/bin/pip install --upgrade pip
 RUN /venv/bin/pip install -r /app/galaxy_ng/requirements/requirements.common.txt
 RUN /venv/bin/pip install -e /app/galaxy_ng
-RUN /venv/bin/pip install django_extensions django-storages boto3
+RUN /venv/bin/pip install django_extensions django-storages boto3 gevent

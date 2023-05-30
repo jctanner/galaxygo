@@ -21,6 +21,7 @@ fi
 GUNICORN_OPTIONS=(
   --bind "${BIND_HOST}:${BIND_PORT}"
   --workers "${GUNICORN_WORKERS}"
+  --worker-class gevent
   --access-logfile -
 )
 
