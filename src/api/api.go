@@ -24,6 +24,8 @@ import (
 
     "github.com/go-redis/redis"
 
+    "github.com/jctanner/galaxygo/pkg/utils"
+    "github.com/jctanner/galaxygo/pkg/galaxy_logger"
     "github.com/jctanner/galaxygo/pkg/database_queries"
     "github.com/jctanner/galaxygo/pkg/galaxy_database"
 )
@@ -32,6 +34,7 @@ import (
 type Galaxy struct {}
 
 
+var logger = galaxy_logger.Logger{}
 var redisClient = redis.NewClient(&redis.Options{
     Addr:     "redis:6379",
     Password: "", // Provide password if required
@@ -78,12 +81,13 @@ func (g *Galaxy) ApiV3CollectionsList(c *gin.Context) {
     }
 
     qs := database_queries.ListCollections + " ORDER BY " + order_by + " LIMIT " + limit + " OFFSET " + offset
+    logger.Debug(qs)
 
     count_rows,err := galaxy_database.ExecuteQueryWithDatabase(database_queries.CountCollections, db)
     if err != nil {
         fmt.Println(err)
     }
-    //fmt.Println(count_rows[0]["count"])
+    logger.Debug(fmt.Sprintf("rowcount %v", count_rows[0]["count"]))
     count := count_rows[0]["count"]
     count_int := int(count.(int64))
 
@@ -164,25 +168,23 @@ func (g *Galaxy) ApiV3CollectionVersionsSummary(c *gin.Context) {
     if err != nil {
         fmt.Println(err)
     }
-    //fmt.Println(tpl)
 
     count_qs, err := tpl.Execute(gonja.Context{"namespace": namespace, "name": name})
     if err != nil {
         fmt.Println(err)
     }
-    //fmt.Println(count_qs)
+    logger.Debug(count_qs)
 
     tpl2, err2 := gonja.FromString(database_queries.CollectionVersionsSummary)
     if err2 != nil {
         fmt.Println(err2)
     }
-    //fmt.Println(tpl2)
 
     versions_qs, err := tpl2.Execute(gonja.Context{"namespace": namespace, "name": name})
     if err != nil {
         fmt.Println(err)
     }
-    //fmt.Println(versions_qs)
+    logger.Debug(versions_qs)
 
     limit := c.DefaultQuery("limit", "10")
     offset := c.DefaultQuery("offset", "0")
@@ -201,12 +203,12 @@ func (g *Galaxy) ApiV3CollectionVersionsSummary(c *gin.Context) {
     if err != nil {
         fmt.Println(err)
     }
-    //fmt.Println(count_rows[0]["count"])
     count := count_rows[0]["count"]
     count_int := int(count.(int64))
+    logger.Debug(fmt.Sprintf("rowcount %v", count_int))
 
-    qs :=  versions_qs + "ORDER BY " + order_by  + " DESC " + " LIMIT " + limit + " OFFSET " + offset
-    //fmt.Println(qs)
+    qs :=  versions_qs + " ORDER BY " + order_by  + " DESC " + " LIMIT " + limit + " OFFSET " + offset
+    logger.Debug(qs)
     collection_rows,err := galaxy_database.ExecuteQueryWithDatabase(qs, db)
     if err != nil {
         fmt.Println(err)
@@ -265,14 +267,14 @@ func (g *Galaxy) ApiV3CollectionVersionsList(c *gin.Context) {
     }
 
     qs := database_queries.ListCollectionVersions + " ORDER BY " + order_by + " LIMIT " + limit + " OFFSET " + offset
-
+    logger.Debug(qs)
     count_rows,err := galaxy_database.ExecuteQueryWithDatabase(database_queries.CountCollectionVersions, db)
     if err != nil {
         fmt.Println(err)
     }
-    //fmt.Println(count_rows[0]["count"])
     count := count_rows[0]["count"]
     count_int := int(count.(int64))
+    logger.Debug(fmt.Sprintf("rowcount %v", count_int))
 
     collection_rows,err := galaxy_database.ExecuteQuery(qs)
     if err != nil {
@@ -321,25 +323,20 @@ func (g *Galaxy) ApiV3CollectionVersionDetail(c *gin.Context) {
     version := c.Param("version")
 
     // get the request host ...
-    scheme := "http"
-    if c.Request.TLS != nil {
-        scheme = "https"
-    }
-    rhost := scheme + "://" + c.Request.Host
+    rhost, err := utils.GetRequestHostFromContext(c)
 
     // make the templater for the cv SQL 
     tpl, err := gonja.FromString(database_queries.CollectionVersionDetail)
     if err != nil {
         fmt.Println(err)
     }
-    //fmt.Println(tpl)
 
     // render the SQL
     qs, err := tpl.Execute(gonja.Context{"namespace": namespace, "name": name, "version": version})
     if err != nil {
         fmt.Println(err)
     }
-    //fmt.Println(qs)
+    logger.Debug(qs)
 
     // run query
     cv_rows,err := galaxy_database.ExecuteQueryWithDatabase(qs, db)
