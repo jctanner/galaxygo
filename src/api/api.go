@@ -11,6 +11,8 @@ import (
 
     "net/http"
 
+    "database/sql"
+
     "github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
     "github.com/aws/aws-sdk-go/aws/session"
@@ -60,6 +62,8 @@ func (g *Galaxy) ApiV3(c *gin.Context) {
 
 func (g *Galaxy) ApiV3CollectionsList(c *gin.Context) {
 
+    db := c.MustGet("db").(*sql.DB)
+
     limit := c.DefaultQuery("limit", "10")
     offset := c.DefaultQuery("offset", "0")
     order_by := c.DefaultQuery("order_by", "pulp_created")
@@ -75,7 +79,7 @@ func (g *Galaxy) ApiV3CollectionsList(c *gin.Context) {
 
     qs := database_queries.ListCollections + " ORDER BY " + order_by + " LIMIT " + limit + " OFFSET " + offset
 
-    count_rows,err := galaxy_database.ExecuteQuery(database_queries.CountCollections)
+    count_rows,err := galaxy_database.ExecuteQueryWithDatabase(database_queries.CountCollections, db)
     if err != nil {
         fmt.Println(err)
     }
@@ -83,7 +87,7 @@ func (g *Galaxy) ApiV3CollectionsList(c *gin.Context) {
     count := count_rows[0]["count"]
     count_int := int(count.(int64))
 
-    collection_rows,err := galaxy_database.ExecuteQuery(qs)
+    collection_rows,err := galaxy_database.ExecuteQueryWithDatabase(qs, db)
     if err != nil {
         fmt.Println(err)
     }
@@ -122,6 +126,9 @@ func (g *Galaxy) ApiV3CollectionsList(c *gin.Context) {
 
 
 func (g *Galaxy) ApiV3CollectionSummary(c *gin.Context) {
+
+    db := c.MustGet("db").(*sql.DB)
+
     namespace := c.Param("namespace")
     name := c.Param("name")
 
@@ -133,7 +140,7 @@ func (g *Galaxy) ApiV3CollectionSummary(c *gin.Context) {
     qs, err := tpl.Execute(gonja.Context{"namespace": namespace, "name": name})
     fmt.Println(qs)
 
-    collection_rows,err := galaxy_database.ExecuteQuery(qs)
+    collection_rows,err := galaxy_database.ExecuteQueryWithDatabase(qs, db)
     if err != nil {
         fmt.Println(err)
     }
@@ -147,6 +154,9 @@ func (g *Galaxy) ApiV3CollectionSummary(c *gin.Context) {
 
 // r.GET("/api/v3/collections/:namespace/:name/versions/", galaxy.ApiV3CollectionVersionsSummary)
 func (g *Galaxy) ApiV3CollectionVersionsSummary(c *gin.Context) {
+
+    db := c.MustGet("db").(*sql.DB)
+
     namespace := c.Param("namespace")
     name := c.Param("name")
 
@@ -187,7 +197,7 @@ func (g *Galaxy) ApiV3CollectionVersionsSummary(c *gin.Context) {
         fmt.Println(err)
     }
 
-    count_rows,err := galaxy_database.ExecuteQuery(count_qs)
+    count_rows,err := galaxy_database.ExecuteQueryWithDatabase(count_qs, db)
     if err != nil {
         fmt.Println(err)
     }
@@ -197,7 +207,7 @@ func (g *Galaxy) ApiV3CollectionVersionsSummary(c *gin.Context) {
 
     qs :=  versions_qs + "ORDER BY " + order_by  + " DESC " + " LIMIT " + limit + " OFFSET " + offset
     //fmt.Println(qs)
-    collection_rows,err := galaxy_database.ExecuteQuery(qs)
+    collection_rows,err := galaxy_database.ExecuteQueryWithDatabase(qs, db)
     if err != nil {
         fmt.Println(err)
     }
@@ -239,6 +249,8 @@ func (g *Galaxy) ApiV3CollectionVersionsSummary(c *gin.Context) {
 
 func (g *Galaxy) ApiV3CollectionVersionsList(c *gin.Context) {
 
+    db := c.MustGet("db").(*sql.DB)
+
     limit := c.DefaultQuery("limit", "10")
     offset := c.DefaultQuery("offset", "0")
     order_by := c.DefaultQuery("order_by", "pulp_created")
@@ -254,7 +266,7 @@ func (g *Galaxy) ApiV3CollectionVersionsList(c *gin.Context) {
 
     qs := database_queries.ListCollectionVersions + " ORDER BY " + order_by + " LIMIT " + limit + " OFFSET " + offset
 
-    count_rows,err := galaxy_database.ExecuteQuery(database_queries.CountCollectionVersions)
+    count_rows,err := galaxy_database.ExecuteQueryWithDatabase(database_queries.CountCollectionVersions, db)
     if err != nil {
         fmt.Println(err)
     }
@@ -302,6 +314,8 @@ func (g *Galaxy) ApiV3CollectionVersionsList(c *gin.Context) {
 
 // r.GET("/api/v3/collections/:namespace/:name/versions/:version/", galaxy.ApiV3CollectionVersionDetail)
 func (g *Galaxy) ApiV3CollectionVersionDetail(c *gin.Context) {
+    db := c.MustGet("db").(*sql.DB)
+
     namespace := c.Param("namespace")
     name := c.Param("name")
     version := c.Param("version")
@@ -328,7 +342,7 @@ func (g *Galaxy) ApiV3CollectionVersionDetail(c *gin.Context) {
     //fmt.Println(qs)
 
 	// run query
-    cv_rows,err := galaxy_database.ExecuteQuery(qs)
+    cv_rows,err := galaxy_database.ExecuteQueryWithDatabase(qs, db)
     if err != nil {
         fmt.Println(err)
     }
@@ -561,9 +575,22 @@ func main() {
     flag.StringVar(&port, "port", "8080", "Port")
     flag.Parse()
 
+    db,err := galaxy_database.OpenDatabaseConnection()
+    if err != nil {
+        fmt.Println("Error:", err)
+        return
+    }
+    defer db.Close()
+
     r := gin.Default()
     r.RedirectTrailingSlash = true
     r.Use(location.Default())
+
+    // Middleware to inject the database connection
+    r.Use(func(c *gin.Context) {
+        c.Set("db", db)
+        c.Next()
+    })
 
     // root
     r.GET("/api/", galaxy.Api)
