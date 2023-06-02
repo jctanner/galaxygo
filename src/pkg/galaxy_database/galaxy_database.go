@@ -1,10 +1,10 @@
 package galaxy_database
 
 import (
-	"fmt"
-	"os"
+    "fmt"
+    "os"
 
-	"database/sql"
+    "database/sql"
     _ "github.com/lib/pq"
 )
 
@@ -56,7 +56,7 @@ func ExecuteQueryWithDatabase(qs string, db *sql.DB) ([]map[string]interface{}, 
             valuePtrs[i] = &values[i]
         }
 
-		// Scan the values of the current row into the map
+        // Scan the values of the current row into the map
         err := rows.Scan(valuePtrs...)
         if err != nil {
             return nil, err
@@ -82,21 +82,21 @@ func ExecuteQueryWithDatabase(qs string, db *sql.DB) ([]map[string]interface{}, 
 
 func ExecuteQuery(qs string) ([]map[string]interface{}, error) {
 
-	dbhost := os.Getenv("DATABASE_HOST")
-	dbname := os.Getenv("DATABASE_NAME")
-	dbuser := os.Getenv("DATABASE_USER")
-	dbpass := os.Getenv("DATABASE_PASSWORD")
+    dbhost := os.Getenv("DATABASE_HOST")
+    dbname := os.Getenv("DATABASE_NAME")
+    dbuser := os.Getenv("DATABASE_USER")
+    dbpass := os.Getenv("DATABASE_PASSWORD")
 
-	// Connection string to the PostgreSQL database
-	connStr := "postgres://" + dbuser + ":" + dbpass + "@" + dbhost + ":5432/" + dbname + "?sslmode=disable"
+    // Connection string to the PostgreSQL database
+    connStr := "postgres://" + dbuser + ":" + dbpass + "@" + dbhost + ":5432/" + dbname + "?sslmode=disable"
 
-	// Open a connection to the database
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		fmt.Println("Error opening connection:", err)
-		return nil, err
-	}
-	defer db.Close()
+    // Open a connection to the database
+    db, err := sql.Open("postgres", connStr)
+    if err != nil {
+        fmt.Println("Error opening connection:", err)
+        return nil, err
+    }
+    defer db.Close()
 
     /*
     rows, err := db.Query(qs)
@@ -125,7 +125,7 @@ func ExecuteQuery(qs string) ([]map[string]interface{}, error) {
             valuePtrs[i] = &values[i]
         }
 
-		// Scan the values of the current row into the map
+        // Scan the values of the current row into the map
         err := rows.Scan(valuePtrs...)
         if err != nil {
             return nil, err

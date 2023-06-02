@@ -2,8 +2,8 @@ package main
 
 import (
     "encoding/json"
-	"flag"
-	"fmt"
+    "flag"
+    "fmt"
     "io"
     "os"
     "strconv"
@@ -14,12 +14,12 @@ import (
     "database/sql"
 
     "github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
+    "github.com/aws/aws-sdk-go/aws/credentials"
     "github.com/aws/aws-sdk-go/aws/session"
     "github.com/aws/aws-sdk-go/service/s3"
 
-	"github.com/gin-contrib/location"
-	"github.com/gin-gonic/gin"
+    "github.com/gin-contrib/location"
+    "github.com/gin-gonic/gin"
     "github.com/noirbizarre/gonja"
 
     "github.com/go-redis/redis"
@@ -327,35 +327,35 @@ func (g *Galaxy) ApiV3CollectionVersionDetail(c *gin.Context) {
     }
     rhost := scheme + "://" + c.Request.Host
 
-	// make the templater for the cv SQL 
+    // make the templater for the cv SQL 
     tpl, err := gonja.FromString(database_queries.CollectionVersionDetail)
     if err != nil {
         fmt.Println(err)
     }
     //fmt.Println(tpl)
 
-	// render the SQL
+    // render the SQL
     qs, err := tpl.Execute(gonja.Context{"namespace": namespace, "name": name, "version": version})
     if err != nil {
         fmt.Println(err)
     }
     //fmt.Println(qs)
 
-	// run query
+    // run query
     cv_rows,err := galaxy_database.ExecuteQueryWithDatabase(qs, db)
     if err != nil {
         fmt.Println(err)
     }
     cv := cv_rows[0]
 
-	// cast to string and unmarshal dependencies
+    // cast to string and unmarshal dependencies
     var cv_deps map[string]interface{}
     err2 := json.Unmarshal([]byte(fmt.Sprintf("%v", cv["dependencies"])), &cv_deps)
     if err2 != nil {
         panic(err2)
     }
 
-	// serialize the response
+    // serialize the response
     ds := gin.H{
         "pulp_id": cv["pulp_id"],
         "href": cv["href"],
@@ -492,7 +492,7 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
 
     // get the secret key
     aws_secret_key := os.Getenv("PULP_AWS_SECRET_ACCESS_KEY")
-	//fmt.Println(aws_secret_key)
+    //fmt.Println(aws_secret_key)
 
     // get the s3 region
     aws_region := os.Getenv("PULP_AWS_S3_REGION_NAME")
@@ -506,29 +506,29 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
     s3_bucket_name := os.Getenv("PULP_AWS_STORAGE_BUCKET_NAME")
     //fmt.Println(s3_bucket_name)
 
-	// set the creds
-	creds := credentials.NewStaticCredentials(aws_access_key, aws_secret_key, "")
-	//fmt.Println(creds)
+    // set the creds
+    creds := credentials.NewStaticCredentials(aws_access_key, aws_secret_key, "")
+    //fmt.Println(creds)
 
     // Create a new aws session
-	sess, err := session.NewSession(&aws.Config{
-		Endpoint: aws.String(s3_endpoint_url),
-		Region: aws.String(aws_region),
-		Credentials: creds,
-	})
+    sess, err := session.NewSession(&aws.Config{
+        Endpoint: aws.String(s3_endpoint_url),
+        Region: aws.String(aws_region),
+        Credentials: creds,
+    })
     if err != nil {
         fmt.Println("Failed to create session", err)
         return
     }
     //fmt.Println("sess ...")
-	//fmt.Println(sess)
+    //fmt.Println(sess)
 
     //sess.Config.WithLogLevel(aws.LogDebugWithHTTPBody)
 
-	// Create a new S3 service client
-	svc := s3.New(sess)
+    // Create a new S3 service client
+    svc := s3.New(sess)
     //fmt.Println("svc ...")
-	//fmt.Println(svc)
+    //fmt.Println(svc)
 
     // Retrieve the file from S3
     filekey := s3_bucket_name + "/" + filepath
@@ -536,31 +536,31 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
         Bucket: aws.String(s3_bucket_name),
         Key:    aws.String(filekey),
     })
-	defer resp.Body.Close()
+    defer resp.Body.Close()
     //fmt.Println("resp ...")
-	//fmt.Println(resp)
+    //fmt.Println(resp)
 
-	//fmt.Println("resp.ContentType ...")
-	//fmt.Println(*resp.ContentType)
+    //fmt.Println("resp.ContentType ...")
+    //fmt.Println(*resp.ContentType)
 
-	// Set the appropriate Content-Type header
-	c.Header("Content-Type", *resp.ContentType)
+    // Set the appropriate Content-Type header
+    c.Header("Content-Type", *resp.ContentType)
 
-	// Stream the file contents to the client
-	_, err = io.Copy(c.Writer, resp.Body)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Failed to stream file")
-		return
-	}
+    // Stream the file contents to the client
+    _, err = io.Copy(c.Writer, resp.Body)
+    if err != nil {
+        c.String(http.StatusInternalServerError, "Failed to stream file")
+        return
+    }
 
-	/*
+    /*
     baseurl := os.Getenv("ARTIFACT_BASE_URL")
     if ( baseurl == "" ) {
-	    baseurl = "http://localhost:5001/api/v3/plugin/ansible/content/community/collections/artifacts/"
+        baseurl = "http://localhost:5001/api/v3/plugin/ansible/content/community/collections/artifacts/"
     }
     redirect_url := baseurl + filename
     c.Redirect(http.StatusFound, redirect_url)
-	*/
+    */
 }
 
 
@@ -569,8 +569,8 @@ func main() {
     var port string
     galaxy := Galaxy{}
 
-	// https://pkg.go.dev/flag
-	//	Package flag implements command-line flag parsing.
+    // https://pkg.go.dev/flag
+    //    Package flag implements command-line flag parsing.
     flag.StringVar(&artifacts, "artifacts", "artifacts", "Location of the artifacts dir")
     flag.StringVar(&port, "port", "8080", "Port")
     flag.Parse()
