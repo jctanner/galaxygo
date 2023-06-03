@@ -408,65 +408,16 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
 		redisCacheKey := "artifact_path_" + filename
 		filepath, err := redisClient.Get(redisCacheKey).Result()
 		if err != nil {
-
-			tpl, err := gonja.FromString(database_queries.ArtifactPathByFilename)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			//fmt.Println(tpl)
-
-			// render the SQL
-			qs, err := tpl.Execute(gonja.Context{"filename": filename})
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			//fmt.Println(qs)
-
-			// run query
-			fp_rows, err := galaxy_database.ExecuteQuery(qs)
-			if err != nil {
-				fmt.Println(err)
-			}
-			//fmt.Println(fp_rows[0]["filepath"])
-			filepath = fp_rows[0]["filepath"].(string)
-			//fmt.Println("FILEPATH " + filepath)
-
+			filepath = utils.GetFilepathFromDatabase(filename)
 			err = redisClient.Set(redisCacheKey, filepath, 5*time.Minute).Err()
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
-
 		}
 
 	} else {
-
-		tpl, err := gonja.FromString(database_queries.ArtifactPathByFilename)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		//fmt.Println(tpl)
-
-		// render the SQL
-		qs, err := tpl.Execute(gonja.Context{"filename": filename})
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		//fmt.Println(qs)
-
-		// run query
-		fp_rows, err := galaxy_database.ExecuteQuery(qs)
-		if err != nil {
-			fmt.Println(err)
-		}
-		//fmt.Println(fp_rows[0]["filepath"])
-		filepath = fp_rows[0]["filepath"].(string)
-		//fmt.Println("FILEPATH " + filepath)
-
+		filepath = utils.GetFilepathFromDatabase(filename)
 	}
 
 	if settings.Use_s3 {
@@ -483,7 +434,6 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
 		}
 
 	} else {
-		//baseurl := os.Getenv("ARTIFACT_BASE_URL")
 		baseurl := settings.Content_hostname
 		if baseurl == "" {
 			baseurl = "http://localhost:5001/api/v3/plugin/ansible/content/community/collections/artifacts/"
