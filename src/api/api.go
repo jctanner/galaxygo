@@ -25,18 +25,21 @@ import (
     "github.com/go-redis/redis"
 
     "github.com/jctanner/galaxygo/pkg/utils"
-    "github.com/jctanner/galaxygo/pkg/galaxy_logger"
     "github.com/jctanner/galaxygo/pkg/database_queries"
     "github.com/jctanner/galaxygo/pkg/galaxy_database"
+    "github.com/jctanner/galaxygo/pkg/galaxy_logger"
+    "github.com/jctanner/galaxygo/pkg/galaxy_settings"
 )
 
 
 type Galaxy struct {}
 
 
+var settings = galaxy_settings.NewGalaxySettings()
 var logger = galaxy_logger.Logger{}
 var redisClient = redis.NewClient(&redis.Options{
-    Addr:     "redis:6379",
+    //Addr:     "redis:6379",
+    Addr:     settings.Redis_address,
     Password: "", // Provide password if required
     DB:       0,  // Use default database
 })

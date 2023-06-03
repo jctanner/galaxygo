@@ -6,14 +6,26 @@ import (
 
     "database/sql"
     _ "github.com/lib/pq"
+
+    "github.com/jctanner/galaxygo/pkg/galaxy_settings"
 )
 
 
+var settings = galaxy_settings.NewGalaxySettings()
+
+
 func OpenDatabaseConnection() (*sql.DB, error) {
+    /*
     dbhost := os.Getenv("DATABASE_HOST")
     dbname := os.Getenv("DATABASE_NAME")
     dbuser := os.Getenv("DATABASE_USER")
     dbpass := os.Getenv("DATABASE_PASSWORD")
+    */
+
+    dbhost := settings.Database_host
+    dbname := settings.Database_name
+    dbuser := settings.Database_username
+    dbpass := settings.Database_password
 
     // Connection string to the PostgreSQL database
     connStr := "postgres://" + dbuser + ":" + dbpass + "@" + dbhost + ":5432/" + dbname + "?sslmode=disable"
