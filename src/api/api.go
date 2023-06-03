@@ -418,9 +418,7 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
     filename := c.Param("filename")
     filepath := ""
 
-    use_redis := false
-
-    if use_redis {
+    if settings.Use_redis {
 
         redisCacheKey := "artifact_path_" + filename
         filepath, err := redisClient.Get(redisCacheKey).Result()

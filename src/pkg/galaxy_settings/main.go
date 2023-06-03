@@ -118,6 +118,12 @@ func NewGalaxySettings() GalaxySettings {
     aws_s3_region := get_env_list([]string{"PULP_AWS_S3_REGION_NAME"}, "")
     aws_s3_endpoint := get_env_list([]string{"PULP_AWS_S3_ENDPOINT_URL"}, "")
     aws_s3_bucket := get_env_list([]string{"PULP_AWS_STORAGE_BUCKET_NAME"}, "")
+    default_file_storage := get_env_list([]string{"PULP_DEFAULT_FILE_STORAGE"}, "")
+
+    use_s3 := false
+    if default_file_storage == "storages.backends.s3boto3.S3Boto3Storage" {
+        use_s3 = true
+    }
 
     return GalaxySettings{
         Api_prefix:  api_prefix,
@@ -131,6 +137,7 @@ func NewGalaxySettings() GalaxySettings {
         Aws_s3_region:  aws_s3_region,
         Aws_s3_endpoint_url: aws_s3_endpoint,
         Aws_s3_bucket_name: aws_s3_bucket,
+        Use_s3: use_s3,
         Database_host: database_host,
         Database_name: database_name,
         Database_username: database_user,
