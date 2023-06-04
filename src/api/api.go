@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -15,6 +17,7 @@ import (
 	"github.com/gin-contrib/location"
 	"github.com/gin-gonic/gin"
 	"github.com/noirbizarre/gonja"
+	"golang.org/x/crypto/pbkdf2"
 
 	"github.com/go-redis/redis"
 
@@ -444,13 +447,82 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
 
 }
 
+func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
+	c.JSON(200, gin.H{})
+}
+
+func authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Skip authentication for GET requests
+		if c.Request.Method == http.MethodGet {
+			c.Next()
+			return
+		}
+
+		db := c.MustGet("db").(*sql.DB)
+
+		username, password, ok := c.Request.BasicAuth()
+		logger.Info(fmt.Sprintf("basic username %v", username))
+		logger.Info(fmt.Sprintf("basic password %v", password))
+		logger.Info(fmt.Sprintf("basic ok %v", ok))
+
+		form_username := c.PostForm("username")
+		form_password := c.PostForm("password")
+		logger.Info(fmt.Sprintf("form username %v", form_username))
+		logger.Info(fmt.Sprintf("form password %v", form_password))
+
+		//hashedPassword := "pbkdf2_sha256$10000$SALT$HASH"
+
+		var salt string
+		iterations := 260000
+		salt = "8rZWNpsMtx9HcuhxOVY8qW"
+		hashed := pbkdf2.Key([]byte(password), []byte(salt), iterations, 32, sha256.New)
+		encoded_hash := base64.StdEncoding.EncodeToString(hashed)
+		logger.Info(fmt.Sprintf("hashed pw %v", encoded_hash))
+		salted_hash := "pbkdf2_sha256" + "$" + strconv.Itoa(iterations) + "$" + salt + "$" + encoded_hash
+		logger.Info(salted_hash)
+
+		// create templater
+		tpl, err := gonja.FromString(database_queries.CheckUsernameAndPassword)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		// render the query
+		count_qs, err := tpl.Execute(gonja.Context{"username": username, "password": salted_hash})
+		if err != nil {
+			fmt.Println(err)
+		}
+		logger.Debug(count_qs)
+
+		// run query
+		count_rows, err := galaxy_database.ExecuteQueryWithDatabase(count_qs, db)
+		if err != nil {
+			fmt.Println(err)
+		}
+		count := count_rows[0]["count"]
+		count_int := int(count.(int64))
+		logger.Debug(fmt.Sprintf("rowcount %v", count_int))
+
+		if count_int >= 1 {
+			c.Next()
+			return
+		}
+
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.Abort()
+		return
+	}
+
+}
+
 func main() {
 	var artifacts string
 	var port string
 	galaxy := Galaxy{}
 
 	// https://pkg.go.dev/flag
-	//    Package flag implements command-line flag parsing.
+	//    "flag" implements command-line flag parsing.
 	flag.StringVar(&artifacts, "artifacts", "artifacts", "Location of the artifacts dir")
 	flag.StringVar(&port, "port", "8080", "Port")
 	flag.Parse()
@@ -508,6 +580,9 @@ func main() {
 	r.GET("/api/v3/collections/:namespace/:name/versions/", galaxy.ApiV3CollectionVersionsSummary)
 	r.GET("/api/v3/collections/:namespace/:name/versions/:version/", galaxy.ApiV3CollectionVersionDetail)
 	r.GET("/api/v3/collectionversions/", galaxy.ApiV3CollectionVersionsList)
+
+	// ... | POST "/api/v3/artifacts/collections/"
+	r.POST("/api/v3/artifacts/collections/", authMiddleware(), galaxy.ApiV3ArtifactPublish)
 
 	//r.Static("/artifacts", amanda.Artifacts)
 	r.Run("0.0.0.0:" + port)
