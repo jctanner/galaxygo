@@ -47,7 +47,7 @@ func GetFilepathFromDatabase(filename string) (filepath string) {
 	}
 
 	filepath = fp_rows[0]["filepath"].(string)
-	logger.Debug(fmt.Sprintf("filepath %v", filepath))
+	logger.Debug(fmt.Sprintf("pulp filepath %v", filepath))
 
 	return filepath
 }
