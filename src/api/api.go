@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"strconv"
 	"time"
 
@@ -21,6 +20,8 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 
 	"github.com/go-redis/redis"
+
+	"github.com/google/uuid"
 
 	"github.com/jctanner/galaxygo/pkg/database_queries"
 	"github.com/jctanner/galaxygo/pkg/galaxy_aws"
@@ -470,9 +471,13 @@ func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
 	logger.Debug(fmt.Sprintf("%v", repository))
 
 	// get the tarball from the request and store it into a tmp file
-	logger.Debug(utils.ShowKeysInMultipartForm(c))
-	logger.Debug(utils.ShowFormData(c))
-	logger.Debug(utils.ShowFormFile(c))
+	//logger.Debug(utils.ShowKeysInMultipartForm(c))
+	//logger.Debug(utils.ShowFormData(c))
+	//logger.Debug(utils.ShowFormFile(c))
+
+	// need the sha256sum
+	sha256Value := c.PostForm("sha256")
+	logger.Debug(fmt.Sprintf("incoming sha256 %v", sha256Value))
 
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -482,22 +487,29 @@ func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
 	}
 
 	// Save the uploaded file to disk
-	tempFile, err := ioutil.TempFile("", "artifact-")
-	tempFile.Close()
-	logger.Debug(tempFile.Name())
-	err = c.SaveUploadedFile(file, tempFile.Name())
+	tmp_filename := sha256Value
+	tmp_filepath := "/tmp/" + tmp_filename
+	logger.Debug(tmp_filepath)
+	//tempFile, err := ioutil.TempFile("", "artifact-")
+	//tempFile.Close()
+	//logger.Debug(tempFile.Name())
+	err = c.SaveUploadedFile(file, tmp_filepath)
 	if err != nil {
 		logger.Debug(fmt.Sprintf("Error saving the file: %s", err.Error()))
 		c.String(500, "Internal Server Error")
 		return
 	}
 
-	// save the file so it shows up as ...
-	//      /api/pulp/api/v3/artifacts/b53693f9-e0de-4168-81d1-02bcbf0418dd/
-
-	// copy it to /var/lib/pulp or s3 as artifact/<sha256>
-
-	// need all the sha values ...
+	// save it to s3 or to /var/lib/pulp
+	if !settings.Use_s3 {
+		c.JSON(500, gin.H{"message": "on disk uploads not yet implemented"})
+		return
+	}
+	sha256ValueFirstTwo := sha256Value[:2]
+	sha256ValueLastPart := sha256Value[2:]
+	s3Destination := "artifact/" + sha256ValueFirstTwo + "/" + sha256ValueLastPart
+	logger.Debug(s3Destination)
+	galaxy_aws.PutS3ObjectByFilepath(tmp_filepath, s3Destination)
 
 	// need the default domain ID ...
 	domain_id := galaxy_database.RunQueryAndReturnColumnByName(
@@ -505,7 +517,16 @@ func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
 		database_queries.GetDefaultDomainID,
 		"pulp_id",
 	)
+
 	logger.Debug(fmt.Sprintf("domain id [%v]", domain_id))
+
+	// need a timestamp
+	currentTime := time.Now().UTC()
+	logger.Debug(fmt.Sprintf("timestamp %v", currentTime))
+
+	// need a new pulp_id
+	newUUID := uuid.New()
+	logger.Debug(fmt.Sprintf("pulp_id %v", newUUID))
 
 	c.JSON(200, gin.H{})
 }
@@ -649,7 +670,9 @@ func authMiddleware() gin.HandlerFunc {
 
 		var salt string
 		iterations := 260000
-		salt = "8rZWNpsMtx9HcuhxOVY8qW"
+		//salt = "8rZWNpsMtx9HcuhxOVY8qW"
+		//salt = "MWJfurAnCDNd51GRv9gU8M"
+		salt = "Suitq0QZgFzrSFSf7xaSA8"
 		hashed := pbkdf2.Key([]byte(password), []byte(salt), iterations, 32, sha256.New)
 		encoded_hash := base64.StdEncoding.EncodeToString(hashed)
 		logger.Info(fmt.Sprintf("hashed pw %v", encoded_hash))
