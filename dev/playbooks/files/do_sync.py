@@ -97,6 +97,7 @@ def main():
             },
         ]
     }
+    spec['collections'] = spec['collections'][:2]
     spec_yaml = yaml.dump(spec)
     payload = {
         "name": "community",

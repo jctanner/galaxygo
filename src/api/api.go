@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"strconv"
 	"time"
 
@@ -448,7 +449,180 @@ func (g *Galaxy) ApiV3Artifact(c *gin.Context) {
 }
 
 func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
+
+	db := c.MustGet("db").(*sql.DB)
+
+	// find the repository id from the default distro base path ...
+	tpl, err := gonja.FromString(database_queries.GetRepositoryIdByName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	logger.Debug("---------------------------------------------------")
+	get_qs, err := tpl.Execute(gonja.Context{"repository_name": settings.Default_distribution_base_path})
+	logger.Debug(get_qs)
+	logger.Debug("---------------------------------------------------")
+
+	repo_rows, err := galaxy_database.ExecuteQueryWithDatabase(get_qs, db)
+	if err != nil {
+		fmt.Println(err)
+	}
+	repository := repo_rows[0]
+	logger.Debug(fmt.Sprintf("%v", repository))
+
+	// get the tarball from the request and store it into a tmp file
+	logger.Debug(utils.ShowKeysInMultipartForm(c))
+	logger.Debug(utils.ShowFormData(c))
+	logger.Debug(utils.ShowFormFile(c))
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		logger.Debug(fmt.Sprintf("Error retrieving the file: %s", err.Error()))
+		c.String(400, "Bad Request")
+		return
+	}
+
+	// Save the uploaded file to disk
+	tempFile, err := ioutil.TempFile("", "artifact-")
+	tempFile.Close()
+	logger.Debug(tempFile.Name())
+	err = c.SaveUploadedFile(file, tempFile.Name())
+	if err != nil {
+		logger.Debug(fmt.Sprintf("Error saving the file: %s", err.Error()))
+		c.String(500, "Internal Server Error")
+		return
+	}
+
+	// save the file so it shows up as ...
+	//      /api/pulp/api/v3/artifacts/b53693f9-e0de-4168-81d1-02bcbf0418dd/
+
+	// copy it to /var/lib/pulp or s3 as artifact/<sha256>
+
+	// need all the sha values ...
+
+	// need the default domain ID ...
+	domain_id := galaxy_database.RunQueryAndReturnColumnByName(
+		db,
+		database_queries.GetDefaultDomainID,
+		"pulp_id",
+	)
+	logger.Debug(fmt.Sprintf("domain id [%v]", domain_id))
+
 	c.JSON(200, gin.H{})
+}
+
+func (g *Galaxy) ApiUiV1NamespaceCreate(c *gin.Context) {
+	/*
+	   {
+	       "pulp_href":"/api/pulp/api/v3/pulp_ansible/namespaces/39/",
+	       "id":39,
+	       "name":"foo",
+	       "company":"",
+	       "email":"",
+	       "avatar_url":"",
+	       "description":"",
+	       "links":[],
+	       "groups":[],
+	       "resources":"",
+	       "related_fields":{},
+	       "metadata_sha256":"afc89e99d9af497eccccd2aba782ff446d195472117a49752226371537162ba8",
+	       "avatar_sha256":null
+	   }
+	*/
+	/*
+	   {
+	       "errors":[
+	           {
+	               "status":"409",
+	               "code":"conflict",
+	               "title":"Data conflicts with existing entity.",
+	               "detail":"A namespace named foo already exists.",
+	               "source":{"parameter":"name"}
+	           }
+	       ]
+	   }
+	*/
+
+	db := c.MustGet("db").(*sql.DB)
+
+	var data database_queries.NamespacePostData
+	if err := c.ShouldBindJSON(&data); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	namespaceName := data.Name
+
+	// does the namespace already exist?
+	tpl, err := gonja.FromString(database_queries.CheckIfNamespaceExists)
+	if err != nil {
+		fmt.Println(err)
+	}
+	count_qs, err := tpl.Execute(gonja.Context{"name": namespaceName})
+	if err != nil {
+		fmt.Println(err)
+	}
+	logger.Debug(count_qs)
+	count_rows, err := galaxy_database.ExecuteQueryWithDatabase(count_qs, db)
+	if err != nil {
+		fmt.Println(err)
+	}
+	count := count_rows[0]["count"]
+	count_int := int(count.(int64))
+	logger.Debug(fmt.Sprintf("rowcount %v", count_int))
+
+	if count_int >= 1 {
+		error_data := []map[string]interface{}{
+			{
+				"status": "400",
+				"code":   "conflict",
+				"title":  "Data conflicts with existing entity.",
+				"detal":  fmt.Sprintf("A namespace named %v already exists", namespaceName),
+			},
+		}
+		c.JSON(400, error_data)
+		return
+	}
+
+	// make a new one
+	tpl, err = gonja.FromString(database_queries.CreateNamespace)
+	if err != nil {
+		fmt.Println(err)
+	}
+	logger.Debug("---------------------------------------------------")
+	create_qs, err := tpl.Execute(gonja.Context{"namespace_name": namespaceName})
+	logger.Debug(create_qs)
+	logger.Debug("---------------------------------------------------")
+	create_rows, err := galaxy_database.ExecuteQueryWithDatabase(create_qs, db)
+	if err != nil {
+		logger.Error(fmt.Sprintf("%v", err))
+		c.JSON(500, gin.H{"error": fmt.Sprintf("%v", err)})
+	}
+	logger.Debug(fmt.Sprintf("%v", create_rows))
+
+	// return the id, name and pulp_href
+	tpl, err = gonja.FromString(database_queries.GetNamespaceByName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	logger.Debug("---------------------------------------------------")
+	get_qs, err := tpl.Execute(gonja.Context{"namespace_name": namespaceName})
+	logger.Debug(get_qs)
+	logger.Debug("---------------------------------------------------")
+
+	ns_rows, err := galaxy_database.ExecuteQueryWithDatabase(get_qs, db)
+	if err != nil {
+		fmt.Println(err)
+	}
+	namespace := ns_rows[0]
+	logger.Debug(fmt.Sprintf("%v", namespace))
+
+	c.JSON(200, gin.H{
+		"name":       namespace["name"],
+		"id":         namespace["id"],
+		"company":    namespace["company"],
+		"email":      namespace["email"],
+		"avatar_url": namespace["avatar_url"],
+	})
 }
 
 func authMiddleware() gin.HandlerFunc {
@@ -580,6 +754,8 @@ func main() {
 	r.GET("/api/v3/collections/:namespace/:name/versions/", galaxy.ApiV3CollectionVersionsSummary)
 	r.GET("/api/v3/collections/:namespace/:name/versions/:version/", galaxy.ApiV3CollectionVersionDetail)
 	r.GET("/api/v3/collectionversions/", galaxy.ApiV3CollectionVersionsList)
+
+	r.POST("/api/_ui/v1/namespaces/", authMiddleware(), galaxy.ApiUiV1NamespaceCreate)
 
 	// ... | POST "/api/v3/artifacts/collections/"
 	r.POST("/api/v3/artifacts/collections/", authMiddleware(), galaxy.ApiV3ArtifactPublish)
