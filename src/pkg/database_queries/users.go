@@ -6,3 +6,12 @@ var CheckUsernameAndPassword = `
     FROM galaxy_user
     WHERE username='{{ username }}' AND password='{{ password }}'
 `
+
+var GetUsernameAndPassword = `
+    SELECT
+        id,
+        username,
+        password
+    FROM galaxy_user
+    WHERE username='{{ username }}'
+`

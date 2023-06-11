@@ -33,8 +33,8 @@ services:
       - '3001:3001'
       #- '3000:8080'
       #- '8080:3000'
-    #command: "/bin/bash -c 'cd /src; go run api/api.go'"
-    command: "/bin/bash -c 'cd /src; while true; do /go/bin/gin --path ./api run api/api.go; sleep 2; done;'"
+    command: "/bin/bash -c 'cd /src; go run api/api.go'"
+    #command: "/bin/bash -c 'cd /src; while true; do /go/bin/gin --path ./api run api/api.go; sleep 2; done;'"
     env_file:
       - './dev/settings.env'
     volumes:

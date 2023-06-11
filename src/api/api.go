@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+    "strings"
 	"time"
 
 	"net/http"
@@ -666,42 +667,47 @@ func authMiddleware() gin.HandlerFunc {
 		logger.Info(fmt.Sprintf("form username %v", form_username))
 		logger.Info(fmt.Sprintf("form password %v", form_password))
 
-		//hashedPassword := "pbkdf2_sha256$10000$SALT$HASH"
-
-		var salt string
-		iterations := 260000
-		//salt = "8rZWNpsMtx9HcuhxOVY8qW"
-		//salt = "MWJfurAnCDNd51GRv9gU8M"
-		salt = "Suitq0QZgFzrSFSf7xaSA8"
-		hashed := pbkdf2.Key([]byte(password), []byte(salt), iterations, 32, sha256.New)
-		encoded_hash := base64.StdEncoding.EncodeToString(hashed)
-		logger.Info(fmt.Sprintf("hashed pw %v", encoded_hash))
-		salted_hash := "pbkdf2_sha256" + "$" + strconv.Itoa(iterations) + "$" + salt + "$" + encoded_hash
-		logger.Info(salted_hash)
-
-		// create templater
-		tpl, err := gonja.FromString(database_queries.CheckUsernameAndPassword)
-		if err != nil {
-			fmt.Println(err)
-		}
+        // create templater
+        tpl, err := gonja.FromString(database_queries.GetUsernameAndPassword)
+        if err != nil {
+            fmt.Println(err)
+        }
 
 		// render the query
-		count_qs, err := tpl.Execute(gonja.Context{"username": username, "password": salted_hash})
+		qs, err := tpl.Execute(gonja.Context{"username": username})
 		if err != nil {
 			fmt.Println(err)
 		}
-		logger.Debug(count_qs)
+		logger.Debug(qs)
 
 		// run query
-		count_rows, err := galaxy_database.ExecuteQueryWithDatabase(count_qs, db)
+		rows, err := galaxy_database.ExecuteQueryWithDatabase(qs, db)
 		if err != nil {
 			fmt.Println(err)
 		}
-		count := count_rows[0]["count"]
-		count_int := int(count.(int64))
-		logger.Debug(fmt.Sprintf("rowcount %v", count_int))
 
-		if count_int >= 1 {
+        // extract hash
+        db_hash, ok := rows[0]["password"].(string)
+        parts := strings.Split(db_hash, "$")
+        fmt.Println(parts)
+
+        // extract salt
+        db_salt := parts[2]
+        fmt.Println(db_salt)
+
+        // extract iterations
+        db_iterations_string := parts[1]
+        db_iterations, err := strconv.Atoi(db_iterations_string)
+        fmt.Println(db_iterations)
+
+        // compile a new hash based on input password
+		hashed := pbkdf2.Key([]byte(password), []byte(db_salt), db_iterations, 32, sha256.New)
+		encoded_hash := base64.StdEncoding.EncodeToString(hashed)
+		logger.Info(fmt.Sprintf("hashed pw %v", encoded_hash))
+		salted_hash := "pbkdf2_sha256" + "$" + strconv.Itoa(db_iterations) + "$" + db_salt + "$" + encoded_hash
+        fmt.Println(salted_hash)
+
+		if salted_hash == db_hash {
 			c.Next()
 			return
 		}
