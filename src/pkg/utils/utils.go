@@ -77,7 +77,7 @@ func ShowKeysInMultipartForm(c *gin.Context) string {
 	}
 
 	// Print the keys
-	return fmt.Sprint("Keys in MultipartForm: %v", keys)
+	return fmt.Sprintf("Keys in MultipartForm: %v", keys)
 }
 
 func ShowFormData(c *gin.Context) (output string) {
