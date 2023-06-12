@@ -622,23 +622,6 @@ func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
 	)
 	logger.Debug(kwargs)
 
-	/*
-		// create a task row ...
-		tpl3, err := gonja.FromString(database_queries.NewArtifactUploadTask)
-		if err != nil {
-			fmt.Println(err)
-		}
-		task_qs, err := tpl3.Execute(gonja.Context{
-			"pulp_created":   currentTime,
-			"pulp_id":        newUUID,
-			"logging_cid":    logging_cid,
-			"pulp_domain_id": domain_id,
-			"args":           args,
-			"kwargs":         kwargs,
-		})
-		logger.Debug(task_qs)
-	*/
-
 	task_stmt, err := db.Prepare(`
         INSERT INTO core_task (
 			pulp_id,
@@ -668,10 +651,47 @@ func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
 	c.JSON(200, gin.H{"task": newUUID})
 }
 
-
 func (g *Galaxy) ApiV3CollectionImportTask(c *gin.Context) {
-}
 
+	db := c.MustGet("db").(*sql.DB)
+
+	taskid := c.Param("taskid")
+
+	// Prepare the SQL statement
+	stmt := `
+		SELECT
+			state,
+			started_at,
+			finished_at,
+			COALESCE(error->>'traceback', ''),
+			COALESCE(error->>'message', '')
+		FROM
+			core_task
+		WHERE
+			pulp_id = $1
+	`
+
+	// Execute the query
+	rows := db.QueryRow(stmt, taskid)
+
+	var state, started_at, finished_at, traceback, message string
+	err := rows.Scan(&state, &started_at, &finished_at, &traceback, &message)
+	if err != nil {
+		logger.Error(fmt.Sprintf("%v", err))
+	}
+
+	c.JSON(200, gin.H{
+		"id":          taskid,
+		"state":       state,
+		"started_at":  started_at,
+		"finished_at": finished_at,
+		"messages":    "",
+		"error": gin.H{
+			"traceback": traceback,
+			"message":   message,
+		},
+	})
+}
 
 func (g *Galaxy) ApiUiV1NamespaceCreate(c *gin.Context) {
 	/*

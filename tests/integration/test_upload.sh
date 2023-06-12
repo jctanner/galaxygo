@@ -19,6 +19,8 @@ ansible-galaxy collection init foo.bar
 #find .
 
 cd foo/bar
+mkdir -p meta
+echo "requires_ansible: '>=2.13'" > meta/runtime.yml
 ansible-galaxy collection build .
 
 cd $WORKDIR
