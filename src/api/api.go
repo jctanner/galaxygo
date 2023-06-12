@@ -7,8 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
-    "strings"
+	"strings"
 	"time"
 
 	"net/http"
@@ -454,27 +455,23 @@ func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
 
 	db := c.MustGet("db").(*sql.DB)
 
-	// find the repository id from the default distro base path ...
-	tpl, err := gonja.FromString(database_queries.GetRepositoryIdByName)
+	// find the staging repository id from the default distro base path ...
+	tpl2, err2 := gonja.FromString(database_queries.GetRepositoryIdByName)
+	if err2 != nil {
+		fmt.Println(err2)
+	}
+	logger.Debug("---------------------------------------------------")
+	get_qs2, err := tpl2.Execute(gonja.Context{"repository_name": "staging"})
+	logger.Debug(get_qs2)
+	logger.Debug("---------------------------------------------------")
+
+	repo_rows2, err := galaxy_database.ExecuteQueryWithDatabase(get_qs2, db)
 	if err != nil {
 		fmt.Println(err)
 	}
-	logger.Debug("---------------------------------------------------")
-	get_qs, err := tpl.Execute(gonja.Context{"repository_name": settings.Default_distribution_base_path})
-	logger.Debug(get_qs)
-	logger.Debug("---------------------------------------------------")
-
-	repo_rows, err := galaxy_database.ExecuteQueryWithDatabase(get_qs, db)
-	if err != nil {
-		fmt.Println(err)
-	}
-	repository := repo_rows[0]
-	logger.Debug(fmt.Sprintf("%v", repository))
-
-	// get the tarball from the request and store it into a tmp file
-	//logger.Debug(utils.ShowKeysInMultipartForm(c))
-	//logger.Debug(utils.ShowFormData(c))
-	//logger.Debug(utils.ShowFormFile(c))
+	staging_repository := fmt.Sprintf("%v", repo_rows2[0]["pulp_id"])
+	logger.Debug(fmt.Sprintf("%v", staging_repository))
+	//staging_repository_id := fmt.Sprintf("%v", staging_repository["pulp_id"])
 
 	// need the sha256sum
 	sha256Value := c.PostForm("sha256")
@@ -486,20 +483,28 @@ func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
 		c.String(400, "Bad Request")
 		return
 	}
+	logger.Debug(fmt.Sprintf("file %v", file))
+	fileName := file.Filename
+	namespace := utils.TarFilenameToNamespace(fileName)
 
 	// Save the uploaded file to disk
-	tmp_filename := sha256Value
-	tmp_filepath := "/tmp/" + tmp_filename
+	//tmp_filename := sha256Value
+	tmp_filepath := "/tmp/" + fileName
 	logger.Debug(tmp_filepath)
-	//tempFile, err := ioutil.TempFile("", "artifact-")
-	//tempFile.Close()
-	//logger.Debug(tempFile.Name())
-	err = c.SaveUploadedFile(file, tmp_filepath)
-	if err != nil {
-		logger.Debug(fmt.Sprintf("Error saving the file: %s", err.Error()))
-		c.String(500, "Internal Server Error")
-		return
-	}
+	/*
+		err = c.SaveUploadedFile(file, tmp_filepath)
+		if err != nil {
+			logger.Debug(fmt.Sprintf("Error saving the file: %s", err.Error()))
+			c.String(500, "Internal Server Error")
+			return
+		}
+	*/
+	utils.SaveUploadedFile(c, tmp_filepath)
+
+	fileInfo, err := os.Stat(tmp_filepath)
+	fileSize := fileInfo.Size()
+
+	//utils.PrintTarballFilenames(tmp_filepath)
 
 	// save it to s3 or to /var/lib/pulp
 	if !settings.Use_s3 {
@@ -508,9 +513,13 @@ func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
 	}
 	sha256ValueFirstTwo := sha256Value[:2]
 	sha256ValueLastPart := sha256Value[2:]
-	s3Destination := "artifact/" + sha256ValueFirstTwo + "/" + sha256ValueLastPart
+	s3Destination := settings.Aws_s3_bucket_name + "/artifact/" + sha256ValueFirstTwo + "/" + sha256ValueLastPart
 	logger.Debug(s3Destination)
 	galaxy_aws.PutS3ObjectByFilepath(tmp_filepath, s3Destination)
+
+	/**************************************************
+	    Schema requirements
+	**************************************************/
 
 	// need the default domain ID ...
 	domain_id := galaxy_database.RunQueryAndReturnColumnByName(
@@ -518,7 +527,6 @@ func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
 		database_queries.GetDefaultDomainID,
 		"pulp_id",
 	)
-
 	logger.Debug(fmt.Sprintf("domain id [%v]", domain_id))
 
 	// need a timestamp
@@ -526,11 +534,144 @@ func (g *Galaxy) ApiV3ArtifactPublish(c *gin.Context) {
 	logger.Debug(fmt.Sprintf("timestamp %v", currentTime))
 
 	// need a new pulp_id
-	newUUID := uuid.New()
-	logger.Debug(fmt.Sprintf("pulp_id %v", newUUID))
+	newUUID := fmt.Sprintf("%s", uuid.New())
+	logger.Debug(newUUID)
 
-	c.JSON(200, gin.H{})
+	// need the logging cid
+	logging_cid := strings.ReplaceAll(newUUID, "-", "")
+
+	// need the username
+	username, _, _ := c.Request.BasicAuth()
+
+	// need all the checksums
+	//fmd5 := utils.GetFileMd5Sum(tmp_filepath)
+	//fsha1 := utils.GetFileSha1Sum(tmp_filepath)
+	fsha224 := utils.GetFileSha224Sum(tmp_filepath)
+	fsha256 := utils.GetFileSha256Sum(tmp_filepath)
+	fsha384 := utils.GetFileSha384Sum(tmp_filepath)
+	fsha512 := utils.GetFileSha512Sum(tmp_filepath)
+
+	/**************************************************
+	    Make a pulp artifact
+	**************************************************/
+	stmt, err := db.Prepare(`
+        INSERT INTO core_artifact (
+            pulp_id,
+            pulp_domain_id,
+            pulp_created,
+			timestamp_of_interest,
+            file,
+            size,
+			sha224,
+            sha256,
+			sha384,
+			sha512
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+        )
+    `)
+	_, err = stmt.Exec(
+		newUUID,
+		domain_id,
+		currentTime,
+		currentTime,
+		"artifact/"+sha256ValueFirstTwo+"/"+sha256ValueLastPart,
+		fileSize,
+		fsha224,
+		fsha256,
+		fsha384,
+		fsha512,
+	)
+	if err != nil {
+		logger.Error(fmt.Sprintf("%s", err))
+	}
+	logger.Info("artifact insert successful")
+
+	/**************************************************
+	    Make an upload task
+	**************************************************/
+
+	// need args
+	//args := ""
+
+	// need kwargs
+	kwargs := fmt.Sprintf(`{
+        "repository_pk": "%s",
+        "data": {
+            "sha256": "%s",
+            "artifact": "%s",
+            "repository": "%s"
+        },
+        "context": {
+            "filename": "%s"
+        },
+        "username": "%s",
+        "filename_ns": "%s",
+        "general_args": [
+            "ansible",
+            "CollectionVersionUploadSerializer"
+        ]
+    }`,
+		staging_repository,
+		sha256Value,
+		"/api/pulp/api/v3/artifacts/"+newUUID+"/",
+		"/api/pulp/api/v3/repositories/ansible/ansible/"+staging_repository+"/",
+		fileName,
+		username,
+		namespace,
+	)
+	logger.Debug(kwargs)
+
+	/*
+		// create a task row ...
+		tpl3, err := gonja.FromString(database_queries.NewArtifactUploadTask)
+		if err != nil {
+			fmt.Println(err)
+		}
+		task_qs, err := tpl3.Execute(gonja.Context{
+			"pulp_created":   currentTime,
+			"pulp_id":        newUUID,
+			"logging_cid":    logging_cid,
+			"pulp_domain_id": domain_id,
+			"args":           args,
+			"kwargs":         kwargs,
+		})
+		logger.Debug(task_qs)
+	*/
+
+	task_stmt, err := db.Prepare(`
+        INSERT INTO core_task (
+			pulp_id,
+			pulp_domain_id,
+			pulp_created,
+			state,
+			name,
+			logging_cid,
+			kwargs
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7
+        )
+    `)
+	_, err = task_stmt.Exec(
+		newUUID,
+		domain_id,
+		currentTime,
+		"waiting",
+		"galaxy_ng.app.tasks.publishing.import_and_auto_approve",
+		logging_cid,
+		kwargs,
+	)
+
+	// cursor.execute("NOTIFY pulp_worker_wakeup")
+	db.Exec("NOTIFY pulp_worker_wakeup")
+
+	c.JSON(200, gin.H{"task": newUUID})
 }
+
+
+func (g *Galaxy) ApiV3CollectionImportTask(c *gin.Context) {
+}
+
 
 func (g *Galaxy) ApiUiV1NamespaceCreate(c *gin.Context) {
 	/*
@@ -539,7 +680,7 @@ func (g *Galaxy) ApiUiV1NamespaceCreate(c *gin.Context) {
 	       "id":39,
 	       "name":"foo",
 	       "company":"",
-	       "email":"",
+	       "EMail":"",
 	       "avatar_url":"",
 	       "description":"",
 	       "links":[],
@@ -667,11 +808,11 @@ func authMiddleware() gin.HandlerFunc {
 		logger.Info(fmt.Sprintf("form username %v", form_username))
 		logger.Info(fmt.Sprintf("form password %v", form_password))
 
-        // create templater
-        tpl, err := gonja.FromString(database_queries.GetUsernameAndPassword)
-        if err != nil {
-            fmt.Println(err)
-        }
+		// create templater
+		tpl, err := gonja.FromString(database_queries.GetUsernameAndPassword)
+		if err != nil {
+			fmt.Println(err)
+		}
 
 		// render the query
 		qs, err := tpl.Execute(gonja.Context{"username": username})
@@ -686,26 +827,26 @@ func authMiddleware() gin.HandlerFunc {
 			fmt.Println(err)
 		}
 
-        // extract hash
-        db_hash, ok := rows[0]["password"].(string)
-        parts := strings.Split(db_hash, "$")
-        fmt.Println(parts)
+		// extract hash
+		db_hash, ok := rows[0]["password"].(string)
+		parts := strings.Split(db_hash, "$")
+		fmt.Println(parts)
 
-        // extract salt
-        db_salt := parts[2]
-        fmt.Println(db_salt)
+		// extract salt
+		db_salt := parts[2]
+		fmt.Println(db_salt)
 
-        // extract iterations
-        db_iterations_string := parts[1]
-        db_iterations, err := strconv.Atoi(db_iterations_string)
-        fmt.Println(db_iterations)
+		// extract iterations
+		db_iterations_string := parts[1]
+		db_iterations, err := strconv.Atoi(db_iterations_string)
+		fmt.Println(db_iterations)
 
-        // compile a new hash based on input password
+		// compile a new hash based on input password
 		hashed := pbkdf2.Key([]byte(password), []byte(db_salt), db_iterations, 32, sha256.New)
 		encoded_hash := base64.StdEncoding.EncodeToString(hashed)
 		logger.Info(fmt.Sprintf("hashed pw %v", encoded_hash))
 		salted_hash := "pbkdf2_sha256" + "$" + strconv.Itoa(db_iterations) + "$" + db_salt + "$" + encoded_hash
-        fmt.Println(salted_hash)
+		fmt.Println(salted_hash)
 
 		if salted_hash == db_hash {
 			c.Next()
@@ -788,6 +929,7 @@ func main() {
 
 	// ... | POST "/api/v3/artifacts/collections/"
 	r.POST("/api/v3/artifacts/collections/", authMiddleware(), galaxy.ApiV3ArtifactPublish)
+	r.GET("/api/v3/imports/collections/:taskid/", galaxy.ApiV3CollectionImportTask)
 
 	//r.Static("/artifacts", amanda.Artifacts)
 	r.Run("0.0.0.0:" + port)

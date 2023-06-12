@@ -1,7 +1,18 @@
 package utils
 
 import (
+	"archive/tar"
+	"compress/gzip"
+	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/base64"
 	"fmt"
+	"io"
+	"log"
+	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jctanner/galaxygo/pkg/database_queries"
@@ -94,4 +105,227 @@ func ShowFormFile(c *gin.Context) string {
 	} else {
 		return fmt.Sprintf("Uploaded File Name: %s", file.Filename)
 	}
+}
+
+func SaveUploadedFile(c *gin.Context, dstPath string) {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		logger.Error(fmt.Sprintf("%v", err))
+	}
+
+	src, err := fileHeader.Open()
+	if err != nil {
+		logger.Error(fmt.Sprintf("%v", err))
+	}
+	defer src.Close()
+
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		logger.Error(fmt.Sprintf("%v", err))
+	}
+	defer dst.Close()
+
+	// Decode the base64-encoded data
+	decoder := base64.NewDecoder(base64.StdEncoding, src)
+
+	// Copy the decoded data to the destination file
+	_, err = io.Copy(dst, decoder)
+	if err != nil {
+		logger.Error(fmt.Sprintf("%v", err))
+	}
+}
+
+func PrintTarballFilenames(filename string) {
+	// Open the tarball file
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	// Create a gzip reader
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer gzipReader.Close()
+
+	// Create a tar reader
+	tarReader := tar.NewReader(gzipReader)
+
+	// Iterate over each file in the tarball
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			// End of tarball
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// Print the filename
+		fmt.Println(header.Name)
+	}
+}
+
+func TarFilenameToNamespace(filename string) string {
+	parts := strings.Split(filename, "-")
+	return parts[0]
+}
+
+func GetFileMd5Sum(filename string) string {
+	// Open the file
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	// Create a new MD5 hash instance
+	hash := md5.New()
+
+	// Copy the file content to the hash object
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Get the hash sum as a byte slice
+	hashSum := hash.Sum(nil)
+
+	// Convert the byte slice to a hex string
+	hashString := fmt.Sprintf("%x", hashSum)
+
+	return hashString
+}
+
+func GetFileSha1Sum(filename string) string {
+	// Open the file
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	// Create a new SHA1 hash instance
+	hash := sha1.New()
+
+	// Copy the file content to the hash object
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Get the hash sum as a byte slice
+	hashSum := hash.Sum(nil)
+
+	// Convert the byte slice to a hex string
+	hashString := fmt.Sprintf("%x", hashSum)
+
+	return hashString
+}
+
+func GetFileSha224Sum(filename string) string {
+	// Open the file
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	// Create a new SHA-224 hash instance
+	hash := sha256.New224()
+
+	// Copy the file content to the hash object
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Get the hash sum as a byte slice
+	hashSum := hash.Sum(nil)
+
+	// Convert the byte slice to a hex string
+	hashString := fmt.Sprintf("%x", hashSum)
+
+	return hashString
+}
+
+func GetFileSha256Sum(filename string) string {
+	// Open the file
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	// Create a new SHA-256 hash instance
+	hash := sha256.New()
+
+	// Copy the file content to the hash object
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Get the hash sum as a byte slice
+	hashSum := hash.Sum(nil)
+
+	// Convert the byte slice to a hex string
+	hashString := fmt.Sprintf("%x", hashSum)
+
+	return hashString
+}
+
+func GetFileSha384Sum(filename string) string {
+	// Open the file
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	// Create a new SHA-384 hash instance
+	hash := sha512.New384()
+
+	// Copy the file content to the hash object
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Get the hash sum as a byte slice
+	hashSum := hash.Sum(nil)
+
+	// Convert the byte slice to a hex string
+	hashString := fmt.Sprintf("%x", hashSum)
+
+	return hashString
+}
+
+func GetFileSha512Sum(filename string) string {
+	// Open the file
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	// Create a new SHA-512 hash instance
+	hash := sha512.New()
+
+	// Copy the file content to the hash object
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Get the hash sum as a byte slice
+	hashSum := hash.Sum(nil)
+
+	// Convert the byte slice to a hex string
+	hashString := fmt.Sprintf("%x", hashSum)
+
+	return hashString
 }

@@ -138,3 +138,53 @@ var ArtifactPathByFilename = `
     WHERE cca.relative_path = '{{ filename }}'
     LIMIT 1
 `
+
+
+var NewArtifactObject = `
+    INSERT INTO core_artifact
+    (
+        pulp_id,
+        pulp_domain_id,
+        pulp_created,
+        file,
+        size,
+        sha256,
+        timestamp_of_interest
+    )
+    VALUES
+    (
+        '{{ pulp_id }}',
+        '{{ pulp_domain_id }}',
+        '{{ pulp_created }}',
+        '{{ file }}',
+        '{{ size }}',
+        '{{ sha256 }},
+        '{{ timestamp_of_interest }}'
+    )
+`
+
+
+var NewArtifactUploadTask = `
+    INSERT INTO core_task
+    (
+        logging_cid,
+        pulp_id,
+        pulp_domain_id,
+        pulp_created,
+        state,
+        name,
+        args,
+        kwargs,
+    ) 
+    VALUES
+    (
+        '{{ logging_cid }}',
+        '{{ pulp_id }}',
+        '{{ pulp_domain_id }}',
+        '{{ pulp_created }}',
+        'Waiting',
+        'galaxy_ng.app.tasks.publishing.import_and_auto_approve',
+        '{{ args }}',
+        '{{ kwargs }}'
+    )
+`
